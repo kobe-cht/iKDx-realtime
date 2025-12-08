@@ -1,0 +1,95 @@
+name: Fetch Taiwan Stock Realtime Data
+
+on:
+  schedule:
+    # 台灣時間 UTC+8，所以 UTC 時間要減 8 小時
+    # 台灣 9:00 = UTC 1:00
+    # 台灣 13:35 = UTC 5:35
+    # 每 6 分鐘執行一次，從 UTC 1:00 到 5:33 (每週一到週五)
+    # 09:00-09:54 (UTC 01:00-01:54)
+    - cron: '0,6,12,18,24,30,36,42,48,54 1 * * 1-5'
+    # 10:00-10:54 (UTC 02:00-02:54)
+    - cron: '0,6,12,18,24,30,36,42,48,54 2 * * 1-5'
+    # 11:00-11:54 (UTC 03:00-03:54)
+    - cron: '0,6,12,18,24,30,36,42,48,54 3 * * 1-5'
+    # 12:00-12:54 (UTC 04:00-04:54)
+    - cron: '0,6,12,18,24,30,36,42,48,54 4 * * 1-5'
+    # 13:00-13:30 (UTC 05:00-05:30)
+    - cron: '0,6,12,18,24,30 5 * * 1-5'
+  
+  # 允許手動觸發
+  workflow_dispatch:
+
+jobs:
+  fetch-realtime:
+    runs-on: ubuntu-latest
+    
+    # 設定權限以允許推送
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Set timezone
+        run: |
+          echo "TZ=Asia/Taipei" >> $GITHUB_ENV
+      
+      - name: Check if market is open
+        id: market-check
+        run: |
+          # 取得台灣時間
+          TW_TIME=$(TZ=Asia/Taipei date +"%H%M")
+          TW_DAY=$(TZ=Asia/Taipei date +"%u")  # 1=Monday, 7=Sunday
+          
+          echo "Current Taiwan time: $TW_TIME"
+          echo "Current Taiwan day: $TW_DAY"
+          
+          # 檢查是否為週一到週五
+          if [ "$TW_DAY" -gt 5 ]; then
+            echo "Weekend - market is closed"
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # 檢查時間是否在 09:00 - 13:35 之間
+          if [ "$TW_TIME" -ge 0900 ] && [ "$TW_TIME" -le 1335 ]; then
+            echo "Market is open"
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "Market is closed"
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Fetch realtime stock data
+        if: steps.market-check.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
+        run: node scripts/fetch-realtime.js
+      
+      - name: Commit and push changes
+        if: steps.market-check.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # 檢查是否有變更
+          if [ -n "$(git status --porcelain)" ]; then
+            git add public/data/
+            TW_TIME=$(TZ=Asia/Taipei date +"%Y-%m-%d %H:%M:%S")
+            git commit -m "📈 Update realtime stock data - $TW_TIME"
+            git push
+            echo "Changes committed and pushed"
+          else
+            echo "No changes to commit"
+          fi
