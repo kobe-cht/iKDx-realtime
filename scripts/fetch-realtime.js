@@ -84,12 +84,14 @@ function formatDate(dateStr) {
 
 // 建立批次 API URL（一次抓多支股票）
 function buildBatchUrl(stocks) {
-    // ex_ch=tse_2330.tw,tse_2317.tw,otc_5483.tw
-    const exCh = stocks.map(stock => {
-        const exchange = stock.type === 'twse' ? 'tse' : 'otc';
-        return `${exchange}_${stock.id}.tw`;
-    }).join(',');
-    
+    // 只抓純數字股票代號，ex_ch=tse_2330.tw|tse_2317.tw|otc_5483.tw
+    const exCh = stocks
+        .filter(stock => /^\d+$/.test(stock.id)) // 非數字的就不要加進去抓，如 00679B或00937B，因為無法抓到
+        .map(stock => {
+            const exchange = stock.type === 'twse' ? 'tse' : 'otc';
+            return `${exchange}_${stock.id}.tw`;
+        })
+        .join('|');
     return `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${exCh}&json=1&delay=0`;
 }
 
