@@ -66,7 +66,7 @@ function saveData(stockId, data) {
     const dirPath = path.join(__dirname, '..', 'public', 'data', stockId);
     ensureDir(dirPath);
     const filePath = path.join(dirPath, 'realtime.json');
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    fs.writeFileSync(filePath, JSON.stringify(data), 'utf-8');
     console.log(`✓ ${stockId} 資料已儲存`);
 }
 
@@ -84,9 +84,8 @@ function formatDate(dateStr) {
 
 // 建立批次 API URL（一次抓多支股票）
 function buildBatchUrl(stocks) {
-    // 只抓純數字股票代號，ex_ch=tse_2330.tw|tse_2317.tw|otc_5483.tw
+    // ex_ch=tse_2330.tw|tse_2317.tw|otc_00679B.tw 。00937B、00679B 為 OTC 股票
     const exCh = stocks
-        .filter(stock => /^\d+$/.test(stock.id)) // 非數字的就不要加進去抓，如 00679B或00937B，因為無法抓到
         .map(stock => {
             const exchange = stock.type === 'twse' ? 'tse' : 'otc';
             return `${exchange}_${stock.id}.tw`;
@@ -231,14 +230,15 @@ function processBatchData(stocks, bestDataMap) {
         // 讀取現有資料
         const existingData = loadExistingData(stock.id);
         
-        // 建立新資料列 [日期, 開盤價, 最高價, 最低價, 收盤價, 成交量]
+        // 建立新資料列 [日期, 開盤價, 最高價, 最低價, 收盤價, 成交量, 時間]
         const newRow = [
             todayDate,
             parseValue(data.o),
             parseValue(data.h),
             parseValue(data.l),
             parseValue(data.z),
-            parseValue(data.v)
+            parseValue(data.v),
+            data.t || '-'  // 時間放在最後一個元素
         ];
         
         // 檢查是否有現有當日資料
