@@ -227,10 +227,8 @@ function processBatchData(stocks, bestDataMap) {
             continue;
         }
         
-        // 讀取現有資料
-        const existingData = loadExistingData(stock.id);
-        
         // 建立新資料列 [日期, 開盤價, 最高價, 最低價, 收盤價, 成交量, 時間]
+        // 只保留最新一筆資料（一維陣列）
         const newRow = [
             todayDate,
             parseValue(data.o),
@@ -241,29 +239,10 @@ function processBatchData(stocks, bestDataMap) {
             data.t || '-'  // 時間放在最後一個元素
         ];
         
-        // 檢查是否有現有當日資料
-        const existingIdx = existingData.findIndex(row => row[0] === todayDate);
+        console.log(`✓ ${stock.id} 更新即時資料: ${JSON.stringify(newRow)}`);
         
-        if (existingIdx === -1) {
-            // 新增當日資料
-            existingData.push(newRow);
-            console.log(`✓ ${stock.id} 新增今日資料: ${JSON.stringify(newRow)}`);
-        } else {
-            // 更新現有資料（若新資料有更好的值）
-            const existingRow = existingData[existingIdx];
-            const updatedRow = newRow.map((val, idx) => {
-                // 如果新值是 '-' 但舊值有效，保留舊值
-                if (val === '-' && existingRow[idx] !== '-') {
-                    return existingRow[idx];
-                }
-                return val;
-            });
-            existingData[existingIdx] = updatedRow;
-            console.log(`✓ ${stock.id} 更新今日資料: ${JSON.stringify(updatedRow)}`);
-        }
-        
-        // 儲存資料
-        saveData(stock.id, existingData);
+        // 直接儲存為一維陣列（只保留最新資料）
+        saveData(stock.id, newRow);
     }
 }
 
