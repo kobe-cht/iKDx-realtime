@@ -28,8 +28,8 @@ const TARGET_STOCK_IDS = [
 const BATCH_SIZE = 30;
 // 重試間隔（毫秒）
 const RETRY_INTERVAL = 3000;
-// 每批最大抓取時間（毫秒）- 60秒
-const BATCH_FETCH_TIME = 60000;
+// 每批最大抓取時間（毫秒）- 90秒
+const BATCH_FETCH_TIME = 90000;
 
 // 讀取股票清單
 function loadStockList() {
@@ -147,7 +147,7 @@ function chunkArray(array, size) {
     return chunks;
 }
 
-// 持續抓取一批股票 60 秒，直到所有股票都有有效成交價或超時
+// 持續抓取一批股票 90 秒，直到所有股票都有有效成交價或超時
 async function fetchBatchWithRetry(stocks) {
     const startTime = Date.now();
     
@@ -279,7 +279,7 @@ async function main() {
         console.log(`🔄 處理第 ${i + 1}/${batches.length} 批（${batch.length} 支股票）`);
         console.log(`${'='.repeat(60)}`);
         
-        // 批次抓取 60 秒
+        // 批次抓取 90 秒
         const bestDataMap = await fetchBatchWithRetry(batch);
         
         // 處理並儲存資料
