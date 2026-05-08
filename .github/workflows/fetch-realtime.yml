@@ -1,20 +1,18 @@
 name: Fetch Taiwan Stock Realtime Data
 
 on:
-    push:
-        branches:
-            - main
-    schedule:
-        # 台灣時間 UTC+8，所以 UTC 時間要減 8 小時
-        # 台灣 9:00 = UTC 1:00
-        # 台灣 13:35 = UTC 5:35
-        # 每小時執行 5 次（每 12 分鐘），從 UTC 1:00 到 5:48 (每週一到週五)
-        # 台灣時間 09:00-13:48，每 12 分鐘
-        # 注意：GitHub Actions 排程可能有數分鐘延遲，實際執行時間由 market-check 步驟把關
-        - cron: '0,12,24,36,48 1-5 * * 1-5'
-
-    # 允許手動觸發
-    workflow_dispatch:
+  push:
+    branches:
+      - main
+  schedule:
+    # 台灣時間 UTC+8，所以 UTC 時間要減 8 小時
+    # 台灣時間 10:00 = UTC 02:00
+    - cron: '0 2 * * 1-5'
+    # 台灣時間 12:00 = UTC 04:00
+    - cron: '0 4 * * 1-5'
+  
+  # 允許手動觸發
+  workflow_dispatch:
 
 jobs:
     fetch-realtime:
