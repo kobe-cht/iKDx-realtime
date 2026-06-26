@@ -1,0 +1,90 @@
+name: Fetch US Stock Realtime Data
+
+# 觸發來源：cloudflare-cron-worker 在美股盤中時段呼叫 workflow_dispatch
+# 美股盤中（紐約時間 09:30–16:00）抓取時點由 worker 端控制：
+#   開盤 +3 分 / +33 分 / +63 分，之後每小時，最後一次 15:33 (NY)
+# workflow 內部仍做一層盤中時段防呆，避免手動誤觸發在收盤後寫入髒資料
+on:
+    workflow_dispatch:
+        inputs:
+            force:
+                description: '強制執行（忽略盤中時段檢查）'
+                required: false
+                type: boolean
+                default: false
+
+jobs:
+    fetch-us-realtime:
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: write
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  cache: 'npm'
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Check if US market is open
+              id: market-check
+              run: |
+                  # 取得紐約時間（自動處理夏冬令時間）
+                  NY_TIME=$(TZ=America/New_York date +"%H%M")
+                  NY_DAY=$(TZ=America/New_York date +"%u")  # 1=Monday, 7=Sunday
+
+                  echo "Current NY time: $NY_TIME"
+                  echo "Current NY day: $NY_DAY"
+
+                  if [ "$NY_DAY" -gt 5 ]; then
+                    echo "Weekend - US market is closed"
+                    echo "should_run=false" >> $GITHUB_OUTPUT
+                    exit 0
+                  fi
+
+                  # 09:30 ~ 16:00 紐約時間
+                  if [ "$NY_TIME" -ge 0930 ] && [ "$NY_TIME" -le 1600 ]; then
+                    echo "US market is open"
+                    echo "should_run=true" >> $GITHUB_OUTPUT
+                  else
+                    echo "US market is closed"
+                    echo "should_run=false" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Fetch US realtime stock data
+              if: steps.market-check.outputs.should_run == 'true' || inputs.force == true
+              run: node scripts/fetch-us-realtime.js
+
+            - name: Commit and push changes
+              if: steps.market-check.outputs.should_run == 'true' || inputs.force == true
+              run: |
+                  git config --local user.email "github-actions[bot]@users.noreply.github.com"
+                  git config --local user.name "github-actions[bot]"
+
+                  if [ -n "$(git status --porcelain)" ]; then
+                    git add public/data/us/
+                    NY_TIME=$(TZ=America/New_York date +"%Y-%m-%d %H:%M:%S")
+                    git commit -m "📈 Update US realtime stock data - $NY_TIME (NY)"
+                    # 推之前 rebase 避免併發衝突
+                    for i in 1 2 3 4 5; do
+                      git pull --rebase -X theirs origin main || true
+                      if git push; then
+                        echo "Push succeeded on attempt $i"
+                        break
+                      fi
+                      echo "Push failed (attempt $i), retrying..."
+                      sleep $((RANDOM % 5 + 3))
+                    done
+                    echo "Changes committed and pushed"
+                  else
+                    echo "No changes to commit"
+                  fi

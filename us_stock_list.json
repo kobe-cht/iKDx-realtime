@@ -1,0 +1,227 @@
+[
+    {
+        "id": "NVDA",
+        "name": "輝達",
+        "type": "us_stock"
+    },
+    {
+        "id": "AMD",
+        "name": "超微半導體",
+        "type": "us_stock"
+    },
+    {
+        "id": "INTC",
+        "name": "英特爾",
+        "type": "us_stock"
+    },
+    {
+        "id": "MU",
+        "name": "美光科技",
+        "type": "us_stock"
+    },
+    {
+        "id": "AVGO",
+        "name": "博通",
+        "type": "us_stock"
+    },
+    {
+        "id": "QCOM",
+        "name": "高通",
+        "type": "us_stock"
+    },
+    {
+        "id": "TXN",
+        "name": "德州儀器",
+        "type": "us_stock"
+    },
+    {
+        "id": "AMAT",
+        "name": "應用材料",
+        "type": "us_stock"
+    },
+    {
+        "id": "ADI",
+        "name": "亞德諾半導體",
+        "type": "us_stock"
+    },
+    {
+        "id": "MSFT",
+        "name": "微軟",
+        "type": "us_stock"
+    },
+    {
+        "id": "GOOGL",
+        "name": "谷歌",
+        "type": "us_stock"
+    },
+    {
+        "id": "AMZN",
+        "name": "亞馬遜",
+        "type": "us_stock"
+    },
+    {
+        "id": "META",
+        "name": "Meta",
+        "type": "us_stock"
+    },
+    {
+        "id": "ADBE",
+        "name": "Adobe",
+        "type": "us_stock"
+    },
+    {
+        "id": "CRM",
+        "name": "Salesforce",
+        "type": "us_stock"
+    },
+    {
+        "id": "PLTR",
+        "name": "Palantir",
+        "type": "us_stock"
+    },
+    {
+        "id": "AAPL",
+        "name": "蘋果",
+        "type": "us_stock"
+    },
+    {
+        "id": "TSLA",
+        "name": "特斯拉",
+        "type": "us_stock"
+    },
+    {
+        "id": "NFLX",
+        "name": "網飛",
+        "type": "us_stock"
+    },
+    {
+        "id": "UBER",
+        "name": "Uber",
+        "type": "us_stock"
+    },
+    {
+        "id": "JPM",
+        "name": "摩根大通",
+        "type": "us_stock"
+    },
+    {
+        "id": "GS",
+        "name": "高盛",
+        "type": "us_stock"
+    },
+    {
+        "id": "MS",
+        "name": "摩根士丹利",
+        "type": "us_stock"
+    },
+    {
+        "id": "V",
+        "name": "Visa",
+        "type": "us_stock"
+    },
+    {
+        "id": "MA",
+        "name": "萬事達信用卡",
+        "type": "us_stock"
+    },
+    {
+        "id": "BRK-B",
+        "name": "波克夏",
+        "type": "us_stock"
+    },
+    {
+        "id": "ORCL",
+        "name": "甲骨文",
+        "type": "us_stock"
+    },
+    {
+        "id": "QQQ",
+        "name": "Invesco納斯達克100指數ETF",
+        "type": "us_etf"
+    },
+    {
+        "id": "VGT",
+        "name": "領航資訊科技交易所交易基金",
+        "type": "us_etf"
+    },
+    {
+        "id": "SMH",
+        "name": "VanEck半導體ETF",
+        "type": "us_etf"
+    },
+    {
+        "id": "VOO",
+        "name": "先鋒標普500ETF",
+        "type": "us_etf"
+    },
+    {
+        "id": "VTI",
+        "name": "Vanguard整體股市ETF",
+        "type": "us_etf"
+    },
+    {
+        "id": "VXUS",
+        "name": "Vanguard總體國際股票ETF",
+        "type": "us_etf"
+    },
+    {
+        "id": "VWO",
+        "name": "先鋒富時新興市場ETF",
+        "type": "us_etf"
+    },
+    {
+        "id": "SCHD",
+        "name": "Schwab美國股利股票ETF",
+        "type": "us_etf"
+    },
+    {
+        "id": "VYM",
+        "name": "領航高股利收益ETF",
+        "type": "us_etf"
+    },
+    {
+        "id": "TLT",
+        "name": "iShares安碩20年以上公債ETF",
+        "type": "us_etf"
+    },
+    {
+        "id": "GDX",
+        "name": "VanEck黃金礦業交易所交易基金",
+        "type": "us_etf"
+    },
+    {
+        "id": "VT",
+        "name": "先鋒全球股票ETF",
+        "type": "us_etf"
+    },
+    {
+        "id": "DIS",
+        "name": "華特迪士尼",
+        "type": "us_stock"
+    },
+    {
+        "id": "LLY",
+        "name": "禮來",
+        "type": "us_stock"
+    },
+    {
+        "id": "LMT",
+        "name": "洛克希德馬丁",
+        "type": "us_stock"
+    },
+    {
+        "id": "MCD",
+        "name": "麥當勞",
+        "type": "us_stock"
+    },
+    {
+        "id": "WMT",
+        "name": "沃爾瑪",
+        "type": "us_stock"
+    },
+    {
+        "id": "SPCX",
+        "name": "spaceX",
+        "type": "us_stock"
+    }
+]
