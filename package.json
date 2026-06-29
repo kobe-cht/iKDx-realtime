@@ -4,7 +4,9 @@
   "description": "Taiwan Stock Realtime Price Fetcher",
   "main": "scripts/fetch-realtime.js",
   "scripts": {
-    "fetch": "node scripts/fetch-realtime.js"
+    "fetch": "node scripts/fetch-realtime.js",
+    "fetch-us": "node scripts/fetch-us-realtime.js",
+    "sync-lists": "node scripts/sync-stock-lists.js"
   },
   "author": "",
   "license": "MIT",

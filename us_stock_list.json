@@ -75,6 +75,11 @@
         "type": "us_stock"
     },
     {
+        "id": "NOW",
+        "name": "ServiceNow",
+        "type": "us_stock"
+    },
+    {
         "id": "PLTR",
         "name": "Palantir",
         "type": "us_stock"
@@ -91,7 +96,7 @@
     },
     {
         "id": "NFLX",
-        "name": "網飛",
+        "name": "Netflix",
         "type": "us_stock"
     },
     {
@@ -121,7 +126,7 @@
     },
     {
         "id": "MA",
-        "name": "萬事達信用卡",
+        "name": "Mastercard",
         "type": "us_stock"
     },
     {
@@ -135,64 +140,9 @@
         "type": "us_stock"
     },
     {
-        "id": "QQQ",
-        "name": "Invesco納斯達克100指數ETF",
-        "type": "us_etf"
-    },
-    {
-        "id": "VGT",
-        "name": "領航資訊科技交易所交易基金",
-        "type": "us_etf"
-    },
-    {
-        "id": "SMH",
-        "name": "VanEck半導體ETF",
-        "type": "us_etf"
-    },
-    {
-        "id": "VOO",
-        "name": "先鋒標普500ETF",
-        "type": "us_etf"
-    },
-    {
-        "id": "VTI",
-        "name": "Vanguard整體股市ETF",
-        "type": "us_etf"
-    },
-    {
-        "id": "VXUS",
-        "name": "Vanguard總體國際股票ETF",
-        "type": "us_etf"
-    },
-    {
-        "id": "VWO",
-        "name": "先鋒富時新興市場ETF",
-        "type": "us_etf"
-    },
-    {
-        "id": "SCHD",
-        "name": "Schwab美國股利股票ETF",
-        "type": "us_etf"
-    },
-    {
-        "id": "VYM",
-        "name": "領航高股利收益ETF",
-        "type": "us_etf"
-    },
-    {
-        "id": "TLT",
-        "name": "iShares安碩20年以上公債ETF",
-        "type": "us_etf"
-    },
-    {
-        "id": "GDX",
-        "name": "VanEck黃金礦業交易所交易基金",
-        "type": "us_etf"
-    },
-    {
-        "id": "VT",
-        "name": "先鋒全球股票ETF",
-        "type": "us_etf"
+        "id": "SPCX",
+        "name": "spaceX",
+        "type": "us_stock"
     },
     {
         "id": "DIS",
@@ -220,8 +170,63 @@
         "type": "us_stock"
     },
     {
-        "id": "SPCX",
-        "name": "spaceX",
-        "type": "us_stock"
+        "id": "QQQ",
+        "name": "Invesco QQQ Trust（納斯達克100）",
+        "type": "us_etf"
+    },
+    {
+        "id": "VGT",
+        "name": "Vanguard 資訊科技",
+        "type": "us_etf"
+    },
+    {
+        "id": "SMH",
+        "name": "VanEck 半導體",
+        "type": "us_etf"
+    },
+    {
+        "id": "VOO",
+        "name": "Vanguard S&P 500",
+        "type": "us_etf"
+    },
+    {
+        "id": "VTI",
+        "name": "Vanguard 全美股市",
+        "type": "us_etf"
+    },
+    {
+        "id": "VT",
+        "name": "Vanguard 全球股票",
+        "type": "us_etf"
+    },
+    {
+        "id": "VXUS",
+        "name": "Vanguard 國際股市",
+        "type": "us_etf"
+    },
+    {
+        "id": "VWO",
+        "name": "Vanguard 新興市場",
+        "type": "us_etf"
+    },
+    {
+        "id": "SCHD",
+        "name": "Schwab 美股高股息",
+        "type": "us_etf"
+    },
+    {
+        "id": "VYM",
+        "name": "Vanguard 高股息",
+        "type": "us_etf"
+    },
+    {
+        "id": "TLT",
+        "name": "iShares 美國長期公債",
+        "type": "us_etf"
+    },
+    {
+        "id": "GDX",
+        "name": "VanEck 黃金礦商",
+        "type": "us_etf"
     }
 ]
