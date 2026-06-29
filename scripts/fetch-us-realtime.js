@@ -25,6 +25,76 @@ const REQUEST_TIMEOUT = 15_000;
 const USER_AGENT =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+// Yahoo Finance v7 quote API 需要 cookie + crumb 驗證，否則回傳 401。
+// 快取取得的憑證，遇到 401 時再重新取得。
+let cachedCrumb = null;
+let cachedCookie = null;
+
+// 取得 Yahoo Finance 的 cookie 與 crumb（驗證憑證）
+async function getYahooCredentials(forceRefresh = false) {
+    if (!forceRefresh && cachedCrumb && cachedCookie) {
+        return { crumb: cachedCrumb, cookie: cachedCookie };
+    }
+
+    // Step 1: 取得 cookie（fc.yahoo.com 會回傳非 2xx 狀態，但會帶 Set-Cookie）
+    let cookie = '';
+    try {
+        const cookieRes = await axios.get('https://fc.yahoo.com', {
+            timeout: REQUEST_TIMEOUT,
+            headers: { 'User-Agent': USER_AGENT },
+            validateStatus: () => true,
+        });
+        const setCookie = cookieRes.headers['set-cookie'];
+        if (Array.isArray(setCookie) && setCookie.length > 0) {
+            cookie = setCookie.map((c) => c.split(';')[0]).join('; ');
+        }
+    } catch (error) {
+        console.log(`⚠ 取得 cookie 失敗: ${error.message}`);
+    }
+
+    // 後備：用 finance.yahoo.com 首頁取得 cookie
+    if (!cookie) {
+        try {
+            const fallbackRes = await axios.get('https://finance.yahoo.com', {
+                timeout: REQUEST_TIMEOUT,
+                headers: { 'User-Agent': USER_AGENT },
+                validateStatus: () => true,
+            });
+            const setCookie = fallbackRes.headers['set-cookie'];
+            if (Array.isArray(setCookie) && setCookie.length > 0) {
+                cookie = setCookie.map((c) => c.split(';')[0]).join('; ');
+            }
+        } catch (error) {
+            console.log(`⚠ 後備取得 cookie 失敗: ${error.message}`);
+        }
+    }
+
+    // Step 2: 用 cookie 取得 crumb
+    let crumb = '';
+    try {
+        const crumbRes = await axios.get('https://query1.finance.yahoo.com/v1/test/getcrumb', {
+            timeout: REQUEST_TIMEOUT,
+            headers: {
+                'User-Agent': USER_AGENT,
+                Accept: 'text/plain',
+                ...(cookie ? { Cookie: cookie } : {}),
+            },
+        });
+        crumb = typeof crumbRes.data === 'string' ? crumbRes.data.trim() : '';
+    } catch (error) {
+        console.log(`⚠ 取得 crumb 失敗: ${error.message}`);
+    }
+
+    cachedCookie = cookie;
+    cachedCrumb = crumb;
+    if (crumb) {
+        console.log(`🔑 已取得 Yahoo 驗證憑證 (crumb: ${crumb.slice(0, 8)}...)`);
+    } else {
+        console.log('⚠ 無法取得 crumb，將嘗試不帶 crumb 請求');
+    }
+    return { crumb, cookie };
+}
+
 // 讀取美股清單
 function loadStockList() {
     const stockListPath = path.join(__dirname, '..', 'us_stock_list.json');
@@ -49,7 +119,7 @@ function saveData(stockId, data) {
 }
 
 function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // 將陣列分割成多個批次
@@ -88,17 +158,41 @@ function parseValue(val) {
 
 // 批次抓取美股 quote
 async function fetchQuoteBatch(symbols) {
-    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols.join(',')}`;
-    try {
-        const res = await axios.get(url, {
+    const { crumb, cookie } = await getYahooCredentials();
+
+    const buildUrl = (c) => {
+        let u = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols.join(',')}`;
+        if (c) u += `&crumb=${encodeURIComponent(c)}`;
+        return u;
+    };
+
+    const doRequest = (url, ck) =>
+        axios.get(url, {
             timeout: REQUEST_TIMEOUT,
             headers: {
                 'User-Agent': USER_AGENT,
                 Accept: 'application/json',
+                ...(ck ? { Cookie: ck } : {}),
             },
         });
+
+    try {
+        const res = await doRequest(buildUrl(crumb), cookie);
         return res.data?.quoteResponse?.result || [];
     } catch (error) {
+        // 401/403 代表憑證失效，重新取得 cookie + crumb 後再試一次
+        const status = error.response?.status;
+        if (status === 401 || status === 403) {
+            console.log(`⚠ 收到 ${status}，重新取得 Yahoo 憑證後重試...`);
+            const fresh = await getYahooCredentials(true);
+            try {
+                const res = await doRequest(buildUrl(fresh.crumb), fresh.cookie);
+                return res.data?.quoteResponse?.result || [];
+            } catch (retryError) {
+                console.log(`⚠ 批次請求失敗（重試後）: ${retryError.message}`);
+                return [];
+            }
+        }
         console.log(`⚠ 批次請求失敗: ${error.message}`);
         return [];
     }
@@ -106,12 +200,12 @@ async function fetchQuoteBatch(symbols) {
 
 // 重試直到所有股票都有有效成交價，或超過 BATCH_FETCH_TIME
 async function fetchBatchWithRetry(stocks) {
-    const symbols = stocks.map(s => s.id);
+    const symbols = stocks.map((s) => s.id);
     const startTime = Date.now();
 
     // 每支股票的最新 quote
     const bestDataMap = new Map();
-    stocks.forEach(stock => bestDataMap.set(stock.id, null));
+    stocks.forEach((stock) => bestDataMap.set(stock.id, null));
 
     const validStockIds = new Set();
     let retryCount = 0;
@@ -132,9 +226,7 @@ async function fetchBatchWithRetry(stocks) {
                 if (!stockId) continue;
 
                 const hasValidPrice =
-                    q.regularMarketPrice !== undefined &&
-                    q.regularMarketPrice !== null &&
-                    !isNaN(Number(q.regularMarketPrice));
+                    q.regularMarketPrice !== undefined && q.regularMarketPrice !== null && !isNaN(Number(q.regularMarketPrice));
 
                 if (hasValidPrice) {
                     bestDataMap.set(stockId, q);
@@ -159,9 +251,7 @@ async function fetchBatchWithRetry(stocks) {
     }
 
     const finalElapsed = Math.round((Date.now() - startTime) / 1000);
-    console.log(
-        `\n📊 批次抓取完成（耗時 ${finalElapsed}s），有效報價: ${validStockIds.size}/${stocks.length}`
-    );
+    console.log(`\n📊 批次抓取完成（耗時 ${finalElapsed}s），有效報價: ${validStockIds.size}/${stocks.length}`);
 
     return bestDataMap;
 }
@@ -200,9 +290,7 @@ function processBatchData(stocks, bestDataMap) {
 
 async function main() {
     console.log('🚀 開始抓取美股即時報價...');
-    console.log(
-        `📅 執行時間（NY）: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })}`
-    );
+    console.log(`📅 執行時間（NY）: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })}`);
 
     const stocks = loadStockList();
     console.log(`📋 美股總數: ${stocks.length}`);
@@ -225,7 +313,7 @@ async function main() {
     console.log(`${'='.repeat(60)}`);
 }
 
-main().catch(error => {
+main().catch((error) => {
     console.error('❌ 執行失敗:', error);
     process.exit(1);
 });
