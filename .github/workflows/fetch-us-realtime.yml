@@ -62,6 +62,8 @@ jobs:
 
             - name: Fetch US realtime stock data
               if: steps.market-check.outputs.should_run == 'true' || inputs.force == true
+              env:
+                  FINNHUB_TOKEN: ${{ secrets.FINNHUB_TOKEN }}
               run: node scripts/fetch-us-realtime.js
 
             - name: Commit and push changes
