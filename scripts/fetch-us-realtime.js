@@ -23,6 +23,11 @@ const REQUEST_TIMEOUT = 10_000;
 const REQUEST_INTERVAL = 1_100; // 免費 60 req/min，留 10% margin
 const MAX_RETRIES = 2; // 單檔失敗最多重試 2 次 (退避 1s → 2s)
 
+// 第二輪掃描：處理 Finnhub 短暫 502/5xx 服務中斷
+// 首輪跑完（約 50s）後，對失敗清單再掃描，給伺服器時間恢復
+const SWEEP_MAX_ROUNDS = 3; // 最多再掃描 3 輪
+const SWEEP_WAIT_MS = 15_000; // 每輪掃描前先等待 15 秒讓服務恢復
+
 // fail-fast：沒有 token 直接結束
 if (!FINNHUB_TOKEN) {
     console.error('❌ 缺少環境變數 FINNHUB_TOKEN');
@@ -145,6 +150,17 @@ async function fetchQuoteWithRetry(stockId) {
                     console.error(`❌ FINNHUB_TOKEN 無效或被撤銷 (401)`);
                     process.exit(1);
                 }
+                // 502/503/504 閘道錯誤（Finnhub 短暫服務中斷）→ 較長退避重試
+                if (status === 502 || status === 503 || status === 504) {
+                    if (attempt < MAX_RETRIES) {
+                        const backoff = 3_000 * (attempt + 1);
+                        console.log(`   ⚠ ${sym} 閘道錯誤 (${status})，${backoff}ms 後重試...`);
+                        await delay(backoff);
+                    } else {
+                        console.log(`   ✗ ${sym} 最終失敗 (${status}): ${msg}（將於第二輪掃描重試）`);
+                    }
+                    continue;
+                }
                 // 其他錯誤 → 指數退避重試
                 if (attempt < MAX_RETRIES) {
                     const backoff = 1_000 * Math.pow(2, attempt);
@@ -180,6 +196,29 @@ function buildRow(quote) {
 
 // ---- 主流程 ----
 
+/**
+ * 處理單一股票：抓取 → 建立資料列 → 儲存。
+ * @returns {'success'|'fail'} 處理結果
+ */
+async function processStock(stock, prefix) {
+    const result = await fetchQuoteWithRetry(stock.id);
+
+    if (result) {
+        const row = buildRow(result.quote);
+        // 若日期解析失敗（t=0），跳過寫入
+        if (!row[0]) {
+            console.log(`${prefix} ⚠ ${stock.id} 無有效時間戳，跳過`);
+            return 'fail';
+        }
+        console.log(`${prefix} ✓ ${stock.id} 現價: ${result.quote.c} (t=${row[6]} NY, date=${row[0]})`);
+        saveData(stock.id, row);
+        return 'success';
+    }
+
+    console.log(`${prefix} ✗ ${stock.id} 全部嘗試失敗`);
+    return 'fail';
+}
+
 async function main() {
     console.log('🚀 開始抓取美股即時報價 (Finnhub)...');
     console.log(`📅 執行時間 (NY): ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })}`);
@@ -191,29 +230,15 @@ async function main() {
 
     const startTime = Date.now();
     let successCount = 0;
-    let failCount = 0;
 
+    // 首輪：抓取全部，收集失敗清單
+    let failedStocks = [];
     for (let i = 0; i < stocks.length; i++) {
         const stock = stocks[i];
         const prefix = `[${i + 1}/${stocks.length}]`;
-
-        const result = await fetchQuoteWithRetry(stock.id);
-
-        if (result) {
-            const row = buildRow(result.quote);
-            // 若日期解析失敗（t=0），跳過寫入
-            if (!row[0]) {
-                console.log(`${prefix} ⚠ ${stock.id} 無有效時間戳，跳過`);
-                failCount++;
-            } else {
-                console.log(`${prefix} ✓ ${stock.id} 現價: ${result.quote.c} (t=${row[6]} NY, date=${row[0]})`);
-                saveData(stock.id, row);
-                successCount++;
-            }
-        } else {
-            console.log(`${prefix} ✗ ${stock.id} 全部嘗試失敗`);
-            failCount++;
-        }
+        const status = await processStock(stock, prefix);
+        if (status === 'success') successCount++;
+        else failedStocks.push(stock);
 
         // 節流：最後一筆不需 delay
         if (i < stocks.length - 1) {
@@ -221,9 +246,34 @@ async function main() {
         }
     }
 
+    // 第二輪掃描：針對失敗清單重試（處理 Finnhub 短暫 502/5xx 中斷）
+    for (let round = 1; round <= SWEEP_MAX_ROUNDS && failedStocks.length > 0; round++) {
+        console.log('-'.repeat(60));
+        console.log(`🔁 第 ${round} 輪掃描：${failedStocks.length} 支待重試，${SWEEP_WAIT_MS / 1000}s 後開始...`);
+        await delay(SWEEP_WAIT_MS);
+
+        const stillFailed = [];
+        for (let i = 0; i < failedStocks.length; i++) {
+            const stock = failedStocks[i];
+            const prefix = `[掃描${round} ${i + 1}/${failedStocks.length}]`;
+            const status = await processStock(stock, prefix);
+            if (status === 'success') successCount++;
+            else stillFailed.push(stock);
+
+            if (i < failedStocks.length - 1) {
+                await delay(REQUEST_INTERVAL);
+            }
+        }
+        failedStocks = stillFailed;
+    }
+
+    const failCount = stocks.length - successCount;
     const elapsed = Math.round((Date.now() - startTime) / 1000);
     console.log('='.repeat(60));
     console.log(`📊 完成 (耗時 ${elapsed}s)：成功 ${successCount}/${stocks.length}，失敗 ${failCount}`);
+    if (failedStocks.length > 0) {
+        console.log(`⚠ 仍失敗: ${failedStocks.map(s => s.id).join(', ')}`);
+    }
 
     // 全部失敗 → 退出碼 1，讓 workflow 顯示紅
     if (successCount === 0) {
