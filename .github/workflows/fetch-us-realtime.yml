@@ -73,7 +73,7 @@ jobs:
                   git config --local user.name "github-actions[bot]"
 
                   if [ -n "$(git status --porcelain)" ]; then
-                    git add public/data/us/
+                    git add public/data/
                     NY_TIME=$(TZ=America/New_York date +"%Y-%m-%d %H:%M:%S")
                     git commit -m "📈 Update US realtime stock data - $NY_TIME (NY)"
                     # 推之前 rebase 避免併發衝突

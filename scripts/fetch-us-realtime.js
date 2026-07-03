@@ -9,7 +9,7 @@
  * 45 檔約 50 秒完成全部抓取。
  *
  * 需要環境變數：FINNHUB_TOKEN
- * 對應儲存路徑：public/data/us/<SYMBOL>/realtime.json
+ * 對應儲存路徑：public/data/<SYMBOL>/realtime.json
  */
 
 const axios = require('axios');
@@ -56,7 +56,7 @@ function ensureDir(dirPath) {
 
 // 儲存資料
 function saveData(stockId, data) {
-    const dirPath = path.join(__dirname, '..', 'public', 'data', 'us', stockId);
+    const dirPath = path.join(__dirname, '..', 'public', 'data', stockId);
     ensureDir(dirPath);
     const filePath = path.join(dirPath, 'realtime.json');
     fs.writeFileSync(filePath, JSON.stringify(data), 'utf-8');
