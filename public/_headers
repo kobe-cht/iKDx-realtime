@@ -1,0 +1,8 @@
+# Cloudflare Pages Headers
+# 即時股價 JSON：壓低 CDN edge cache TTL，避免不同地區 edge 之間資料不同步
+# max-age=0        瀏覽器每次都重新驗證
+# s-maxage=10      CDN edge 最多快取 10 秒
+# must-revalidate  過期後必須向 origin 驗證
+/data/*
+  Cache-Control: public, max-age=0, s-maxage=10, must-revalidate
+  Access-Control-Allow-Origin: *
