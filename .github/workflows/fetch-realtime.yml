@@ -51,8 +51,8 @@ jobs:
                     exit 0
                   fi
 
-                  # 檢查時間是否在 09:00 - 13:35 之間
-                  if [ "$TW_TIME" -ge 0900 ] && [ "$TW_TIME" -le 1335 ]; then
+                  # 檢查時間是否在 09:00 - 13:50 之間
+                  if [ "$TW_TIME" -ge 0900 ] && [ "$TW_TIME" -le 1350 ]; then
                     echo "Market is open"
                     echo "should_run=true" >> $GITHUB_OUTPUT
                   else
