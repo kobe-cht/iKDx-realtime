@@ -402,7 +402,7 @@ async function fetchYahooFallback(stocks, bestDataMap, validStockIds) {
                 `${taipeiDt.getUTCFullYear()}` +
                 pad(taipeiDt.getUTCMonth() + 1) +
                 pad(taipeiDt.getUTCDate());
-            const timeStr = `${pad(taipeiDt.getUTCHours())}:${pad(taipeiDt.getUTCMinutes())}`;
+            const timeStr = `${pad(taipeiDt.getUTCHours())}:${pad(taipeiDt.getUTCMinutes())}:00`;
 
             // spark 沒有逐筆 open/high/low，設為與成交價相同（前端只看 close=z 欄位）
             const syntheticData = {
