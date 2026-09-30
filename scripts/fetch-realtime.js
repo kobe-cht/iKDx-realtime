@@ -262,7 +262,7 @@ async function getYahooCrumb() {
     // 原因：Yahoo 首頁 response 帶幾十個 Set-Cookie，axios 走 node.js HTTP parser
     //       預設 maxHeaderSize=16KB，全部 header 超限會拋 "Parse Error: Header overflow"
     //       原生 https.request 可設更大的 maxHeaderSize 繞開此限制
-    const a1sCookie = await new Promise((resolve) => {
+    const authCookie = await new Promise((resolve) => {
         const req = https.request(
             {
                 hostname: 'finance.yahoo.com',
@@ -277,12 +277,15 @@ async function getYahooCrumb() {
                 timeout: 10000,
             },
             (res) => {
-                // 只取 A1S cookie，不讀 body（直接 destroy 節省時間）
+                // 取認證相關的 A1 / A3 / A1S cookie，不讀 body
                 const rawCookies = res.headers['set-cookie'] || [];
                 console.log(`  [crumb] 首頁 status=${res.statusCode}，Set-Cookie 數量=${rawCookies.length}，names=[${rawCookies.map(c => c.split('=')[0]).join(',')}]`);
-                const a1s = rawCookies.find((c) => c.startsWith('A1S='));
+                const needed = ['A1=', 'A3=', 'A1S='];
+                const picked = rawCookies
+                    .filter(c => needed.some(n => c.startsWith(n)))
+                    .map(c => c.split(';')[0]);
                 res.destroy();
-                resolve(a1s ? a1s.split(';')[0] : null);
+                resolve(picked.length > 0 ? picked.join('; ') : null);
             }
         );
         req.on('error', () => resolve(null));
@@ -290,13 +293,13 @@ async function getYahooCrumb() {
         req.end();
     });
 
-    if (!a1sCookie) {
-        console.log('⚠ Yahoo crumb 取得失敗（未能取得 A1S cookie）');
+    if (!authCookie) {
+        console.log('⚠ Yahoo crumb 取得失敗（未能取得 A1/A3/A1S cookie）');
         return null;
     }
-    console.log(`  [crumb] A1S cookie 已取得，長度 ${a1sCookie.length}`);
+    console.log(`  [crumb] cookie 已取得，長度 ${authCookie.length}`);
 
-    // Step 2：用 A1S cookie 打 getcrumb（header 很小，axios 可正常處理）
+    // Step 2：用 auth cookie 打 getcrumb（header 很小，axios 可正常處理）
     try {
         const crumbRes = await axios.get('https://query2.finance.yahoo.com/v1/test/getcrumb', {
             timeout: 10000,
@@ -305,7 +308,7 @@ async function getYahooCrumb() {
                     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
                 Accept: '*/*',
                 Referer: 'https://finance.yahoo.com/',
-                Cookie: a1sCookie,
+                Cookie: authCookie,
             },
         });
 
@@ -315,7 +318,7 @@ async function getYahooCrumb() {
             return null;
         }
 
-        return { cookie: a1sCookie, crumb };
+        return { cookie: authCookie, crumb };
     } catch (error) {
         console.log(`⚠ Yahoo crumb 取得失敗: ${error.message}`);
         return null;
