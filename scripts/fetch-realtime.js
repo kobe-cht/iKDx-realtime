@@ -250,25 +250,84 @@ function toYahooSymbol(stock) {
     return `${stock.id}${suffix}`;
 }
 
-// 從 Yahoo Finance v8 API 批次抓取多支股票報價
-async function fetchYahooBatch(stocks) {
+/**
+ * 取得 Yahoo Finance 的 cookie + crumb（每次 fallback 呼叫時執行一次）
+ * 流程：先打 finance.yahoo.com 取 cookie → 再打 getcrumb endpoint 取 crumb
+ * @returns {Promise<{cookie: string, crumb: string}|null>}
+ */
+async function getYahooCrumb() {
+    try {
+        // Step 1：打 Yahoo Finance 首頁取得有效 cookie
+        const cookieRes = await axios.get('https://finance.yahoo.com/', {
+            timeout: 10000,
+            headers: {
+                'User-Agent':
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            },
+            maxRedirects: 5,
+        });
+
+        // 從 Set-Cookie header 組合 cookie 字串
+        const rawCookies = cookieRes.headers['set-cookie'] || [];
+        const cookieStr = rawCookies
+            .map((c) => c.split(';')[0])
+            .join('; ');
+
+        // Step 2：用拿到的 cookie 打 getcrumb
+        const crumbRes = await axios.get('https://query2.finance.yahoo.com/v1/test/getcrumb', {
+            timeout: 10000,
+            headers: {
+                'User-Agent':
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                Accept: '*/*',
+                Referer: 'https://finance.yahoo.com/',
+                Cookie: cookieStr,
+            },
+        });
+
+        const crumb = typeof crumbRes.data === 'string' ? crumbRes.data.trim() : null;
+        if (!crumb || crumb.includes('{')) {
+            console.log('⚠ Yahoo crumb 取得失敗（回傳非預期格式）');
+            return null;
+        }
+
+        return { cookie: cookieStr, crumb };
+    } catch (error) {
+        console.log(`⚠ Yahoo crumb 取得失敗: ${error.message}`);
+        return null;
+    }
+}
+
+/**
+ * 用 Yahoo Finance v8/finance/spark 批次查詢多支股票最新報價
+ * spark endpoint 不需要 fields 篩選，直接回傳當日即時價與昨收
+ * @param {Array} stocks - 股票物件陣列
+ * @param {string} cookie - Yahoo cookie
+ * @param {string} crumb  - Yahoo crumb
+ * @returns {Promise<Object>} symbol → { price, open, high, low, timestamp } 的 Map
+ */
+async function fetchYahooBatch(stocks, cookie, crumb) {
     const symbols = stocks.map(toYahooSymbol).join(',');
-    const url = `https://query1.finance.yahoo.com/v8/finance/quote?symbols=${symbols}&fields=regularMarketPrice,regularMarketOpen,regularMarketDayHigh,regularMarketDayLow,regularMarketVolume,regularMarketTime`;
+    const url = `https://query2.finance.yahoo.com/v8/finance/spark?symbols=${encodeURIComponent(symbols)}&range=1d&interval=1d&crumb=${encodeURIComponent(crumb)}`;
 
     try {
         const res = await axios.get(url, {
             timeout: 15000,
             headers: {
                 'User-Agent':
-                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
                 Accept: 'application/json',
+                Referer: 'https://finance.yahoo.com/',
+                Cookie: cookie,
             },
         });
 
-        return res.data?.quoteResponse?.result || [];
+        // spark 回傳格式：{ "2330.TW": { fulldayPrice, fulldayChange, timestamp, ... }, ... }
+        return res.data || {};
     } catch (error) {
         console.log(`⚠ Yahoo Finance 批次請求失敗: ${error.message}`);
-        return [];
+        return {};
     }
 }
 
@@ -281,40 +340,53 @@ async function fetchYahooFallback(stocks, bestDataMap, validStockIds) {
 
     console.log(`\n🟡 Yahoo Finance fallback：補抓 ${missing.length} 支無成交價股票`);
 
+    // 取得 crumb（整批共用一組）
+    const auth = await getYahooCrumb();
+    if (!auth) {
+        console.log('⚠ 無法取得 Yahoo crumb，跳過 fallback');
+        return;
+    }
+    const { cookie, crumb } = auth;
+    console.log(`  ✓ Yahoo crumb 取得成功`);
+
     const batches = chunkArray(missing, YAHOO_BATCH_SIZE);
     const tasks = batches.map((batch) => async () => {
         await delay(Math.floor(Math.random() * REQUEST_JITTER));
-        const results = await fetchYahooBatch(batch);
+        const sparkData = await fetchYahooBatch(batch, cookie, crumb);
 
         // 建立 symbol → stock 的對應表以便反查代號
         const symbolMap = new Map(batch.map((s) => [toYahooSymbol(s), s]));
 
         let filled = 0;
-        for (const item of results) {
-            const stock = symbolMap.get(item.symbol);
+        for (const [symbol, item] of Object.entries(sparkData)) {
+            const stock = symbolMap.get(symbol);
             if (!stock) continue;
 
-            const price = item.regularMarketPrice;
-            if (!price || isNaN(price)) continue;
+            // spark 欄位：fulldayPrice = 最新成交價，timestamp = Unix 秒陣列
+            const price = item.fulldayPrice;
+            if (price == null || isNaN(price) || price <= 0) continue;
 
-            // 取得交易時間戳記（Unix 秒）→ 轉為 YYYYMMDD 與 HH:mm
-            const ts = item.regularMarketTime ? item.regularMarketTime * 1000 : Date.now();
+            // 取最後一個 timestamp（如果有的話）
+            const tsArr = Array.isArray(item.timestamp) ? item.timestamp : [];
+            const ts = tsArr.length > 0 ? tsArr[tsArr.length - 1] * 1000 : Date.now();
             const dt = new Date(ts);
+            // 轉台北時間（GitHub Actions 環境是 UTC，台股時間需 +8h）
+            const taipeiDt = new Date(dt.getTime() + 8 * 60 * 60 * 1000);
             const pad = (n) => String(n).padStart(2, '0');
             const dateStr =
-                `${dt.getFullYear()}` +
-                pad(dt.getMonth() + 1) +
-                pad(dt.getDate());
-            const timeStr = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+                `${taipeiDt.getUTCFullYear()}` +
+                pad(taipeiDt.getUTCMonth() + 1) +
+                pad(taipeiDt.getUTCDate());
+            const timeStr = `${pad(taipeiDt.getUTCHours())}:${pad(taipeiDt.getUTCMinutes())}`;
 
-            // 組成與 TWSE msgArray 相容的物件
+            // spark 沒有逐筆 open/high/low，設為與成交價相同（前端只看 close=z 欄位）
             const syntheticData = {
                 c: stock.id,
                 z: String(price),
-                o: item.regularMarketOpen != null ? String(item.regularMarketOpen) : '-',
-                h: item.regularMarketDayHigh != null ? String(item.regularMarketDayHigh) : '-',
-                l: item.regularMarketDayLow != null ? String(item.regularMarketDayLow) : '-',
-                v: item.regularMarketVolume != null ? String(item.regularMarketVolume) : '-',
+                o: '-',
+                h: '-',
+                l: '-',
+                v: '-',
                 d: dateStr,
                 t: timeStr,
                 _source: 'yahoo',

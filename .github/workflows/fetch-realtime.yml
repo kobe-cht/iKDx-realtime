@@ -75,7 +75,16 @@ jobs:
                     git add public/data/
                     TW_TIME=$(TZ=Asia/Taipei date +"%Y-%m-%d %H:%M:%S")
                     git commit -m "📈 Update realtime stock data - $TW_TIME"
-                    git push
+                    # 推之前 rebase 避免兩個 job 同時推的衝突（與 US workflow 相同策略）
+                    for i in 1 2 3 4 5; do
+                      git pull --rebase -X theirs origin main || true
+                      if git push; then
+                        echo "Push succeeded on attempt $i"
+                        break
+                      fi
+                      echo "Push failed (attempt $i), retrying..."
+                      sleep $((RANDOM % 5 + 3))
+                    done
                     echo "Changes committed and pushed"
                   else
                     echo "No changes to commit"
