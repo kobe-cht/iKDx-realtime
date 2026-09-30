@@ -1,6 +1,7 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 
 // 目標股票來源：與主專案「有抓收盤」的清單一致（target_stock_ids.json），
 // 由主專案 src/configs/stock-ids.js 的 TARGET_STOCK_IDS 同步而來，取代過往硬編白名單。
@@ -252,28 +253,49 @@ function toYahooSymbol(stock) {
 
 /**
  * 取得 Yahoo Finance 的 cookie + crumb（每次 fallback 呼叫時執行一次）
- * 流程：先打 finance.yahoo.com 取 cookie → 再打 getcrumb endpoint 取 crumb
+ * 流程：先用原生 https 打 finance.yahoo.com 取 A1S cookie（繞開 axios header 大小限制）
+ *       → 再打 getcrumb endpoint 取 crumb
  * @returns {Promise<{cookie: string, crumb: string}|null>}
  */
 async function getYahooCrumb() {
-    try {
-        // Step 1：打 Yahoo Finance 首頁取得有效 cookie
-        const cookieRes = await axios.get('https://finance.yahoo.com/', {
-            timeout: 10000,
-            headers: {
-                'User-Agent':
-                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-                Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    // Step 1：用原生 https 打首頁，只撈 A1S cookie
+    // 原因：Yahoo 首頁 response 帶幾十個 Set-Cookie，axios 走 node.js HTTP parser
+    //       預設 maxHeaderSize=16KB，全部 header 超限會拋 "Parse Error: Header overflow"
+    //       原生 https.request 可設更大的 maxHeaderSize 繞開此限制
+    const a1sCookie = await new Promise((resolve) => {
+        const req = https.request(
+            {
+                hostname: 'finance.yahoo.com',
+                path: '/',
+                method: 'GET',
+                maxHeaderSize: 65536, // 64KB，足夠容納 Yahoo 的所有 response header
+                headers: {
+                    'User-Agent':
+                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                },
+                timeout: 10000,
             },
-            maxRedirects: 5,
-        });
+            (res) => {
+                // 只取 A1S cookie，不讀 body（直接 destroy 節省時間）
+                const rawCookies = res.headers['set-cookie'] || [];
+                const a1s = rawCookies.find((c) => c.startsWith('A1S='));
+                res.destroy();
+                resolve(a1s ? a1s.split(';')[0] : null);
+            }
+        );
+        req.on('error', () => resolve(null));
+        req.on('timeout', () => { req.destroy(); resolve(null); });
+        req.end();
+    });
 
-        // 從 Set-Cookie 中只取認證必要的 A1S cookie（全部串起來會超過 node.js header 上限）
-        const rawCookies = cookieRes.headers['set-cookie'] || [];
-        const a1s = rawCookies.find((c) => c.startsWith('A1S='));
-        const cookieStr = a1s ? a1s.split(';')[0] : rawCookies.map((c) => c.split(';')[0]).join('; ');
+    if (!a1sCookie) {
+        console.log('⚠ Yahoo crumb 取得失敗（未能取得 A1S cookie）');
+        return null;
+    }
 
-        // Step 2：用拿到的 cookie 打 getcrumb
+    // Step 2：用 A1S cookie 打 getcrumb（header 很小，axios 可正常處理）
+    try {
         const crumbRes = await axios.get('https://query2.finance.yahoo.com/v1/test/getcrumb', {
             timeout: 10000,
             headers: {
@@ -281,7 +303,7 @@ async function getYahooCrumb() {
                     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
                 Accept: '*/*',
                 Referer: 'https://finance.yahoo.com/',
-                Cookie: cookieStr,
+                Cookie: a1sCookie,
             },
         });
 
@@ -291,7 +313,7 @@ async function getYahooCrumb() {
             return null;
         }
 
-        return { cookie: cookieStr, crumb };
+        return { cookie: a1sCookie, crumb };
     } catch (error) {
         console.log(`⚠ Yahoo crumb 取得失敗: ${error.message}`);
         return null;
