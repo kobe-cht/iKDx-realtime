@@ -279,7 +279,7 @@ async function getYahooCrumb() {
             (res) => {
                 // 取認證相關的 A1 / A3 / A1S cookie，不讀 body
                 const rawCookies = res.headers['set-cookie'] || [];
-                console.log(`  [crumb] 首頁 status=${res.statusCode}，Set-Cookie 數量=${rawCookies.length}，names=[${rawCookies.map(c => c.split('=')[0]).join(',')}]`);
+                console.log(`  [crumb] 首頁 status=${res.statusCode}，Set-Cookie 數量=${rawCookies.length}`);
                 const needed = ['A1=', 'A3=', 'A1S='];
                 const picked = rawCookies
                     .filter(c => needed.some(n => c.startsWith(n)))
@@ -297,9 +297,8 @@ async function getYahooCrumb() {
         console.log('⚠ Yahoo crumb 取得失敗（未能取得 A1/A3/A1S cookie）');
         return null;
     }
-    console.log(`  [crumb] cookie 已取得，長度 ${authCookie.length}`);
 
-    // Step 2：用 auth cookie 打 getcrumb（header 很小，axios 可正常處理）
+    // Step 2：用 auth cookie 打 getcrumb
     try {
         const crumbRes = await axios.get('https://query2.finance.yahoo.com/v1/test/getcrumb', {
             timeout: 10000,
@@ -314,10 +313,10 @@ async function getYahooCrumb() {
 
         const crumb = typeof crumbRes.data === 'string' ? crumbRes.data.trim() : null;
         if (!crumb || crumb.includes('{')) {
-            console.log(`⚠ Yahoo crumb 取得失敗（回傳非預期格式，status=${crumbRes.status}，data=${JSON.stringify(crumbRes.data).substring(0, 100)}）`);
+            console.log('⚠ Yahoo crumb 取得失敗（回傳非預期格式）');
             return null;
         }
-
+        console.log('  ✓ Yahoo crumb 取得成功');
         return { cookie: authCookie, crumb };
     } catch (error) {
         console.log(`⚠ Yahoo crumb 取得失敗: ${error.message}`);
