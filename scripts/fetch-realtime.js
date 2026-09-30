@@ -268,11 +268,10 @@ async function getYahooCrumb() {
             maxRedirects: 5,
         });
 
-        // 從 Set-Cookie header 組合 cookie 字串
+        // 從 Set-Cookie 中只取認證必要的 A1S cookie（全部串起來會超過 node.js header 上限）
         const rawCookies = cookieRes.headers['set-cookie'] || [];
-        const cookieStr = rawCookies
-            .map((c) => c.split(';')[0])
-            .join('; ');
+        const a1s = rawCookies.find((c) => c.startsWith('A1S='));
+        const cookieStr = a1s ? a1s.split(';')[0] : rawCookies.map((c) => c.split(';')[0]).join('; ');
 
         // Step 2：用拿到的 cookie 打 getcrumb
         const crumbRes = await axios.get('https://query2.finance.yahoo.com/v1/test/getcrumb', {
