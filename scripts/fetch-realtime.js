@@ -17,6 +17,12 @@ const RETRY_INTERVAL = 3000;
 // 併發請求啟動時的隨機錯開上限（毫秒），避免同一瞬間打出大量相同請求
 const REQUEST_JITTER = 500;
 
+// Yahoo Finance fallback 設定
+// 每批查詢股票數量（Yahoo 支援逗號分隔多個 symbol）
+const YAHOO_BATCH_SIZE = 20;
+// Yahoo fallback 的併發批次數
+const YAHOO_CONCURRENCY = 3;
+
 // 讀取目標股票 ID 清單
 function loadTargetIds() {
     return JSON.parse(fs.readFileSync(TARGET_IDS_PATH, 'utf-8'));
@@ -236,6 +242,99 @@ async function fetchAllWithConcurrency(stocks) {
     return bestDataMap;
 }
 
+// ── Yahoo Finance Fallback ──────────────────────────────────────────────────
+
+// 將台股代碼轉成 Yahoo Finance symbol（上市加 .TW、上櫃加 .TWO）
+function toYahooSymbol(stock) {
+    const suffix = stock.type === 'twse' ? '.TW' : '.TWO';
+    return `${stock.id}${suffix}`;
+}
+
+// 從 Yahoo Finance v8 API 批次抓取多支股票報價
+async function fetchYahooBatch(stocks) {
+    const symbols = stocks.map(toYahooSymbol).join(',');
+    const url = `https://query1.finance.yahoo.com/v8/finance/quote?symbols=${symbols}&fields=regularMarketPrice,regularMarketOpen,regularMarketDayHigh,regularMarketDayLow,regularMarketVolume,regularMarketTime`;
+
+    try {
+        const res = await axios.get(url, {
+            timeout: 15000,
+            headers: {
+                'User-Agent':
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                Accept: 'application/json',
+            },
+        });
+
+        return res.data?.quoteResponse?.result || [];
+    } catch (error) {
+        console.log(`⚠ Yahoo Finance 批次請求失敗: ${error.message}`);
+        return [];
+    }
+}
+
+// 將 Yahoo Finance 回傳資料轉成與 TWSE msgArray 相容的格式
+// 填入 bestDataMap（只補「仍無有效 z」的股票，不覆蓋已有 TWSE 有效資料）
+async function fetchYahooFallback(stocks, bestDataMap, validStockIds) {
+    // 只對仍無有效成交價的股票發送請求
+    const missing = stocks.filter((s) => !validStockIds.has(s.id));
+    if (missing.length === 0) return;
+
+    console.log(`\n🟡 Yahoo Finance fallback：補抓 ${missing.length} 支無成交價股票`);
+
+    const batches = chunkArray(missing, YAHOO_BATCH_SIZE);
+    const tasks = batches.map((batch) => async () => {
+        await delay(Math.floor(Math.random() * REQUEST_JITTER));
+        const results = await fetchYahooBatch(batch);
+
+        // 建立 symbol → stock 的對應表以便反查代號
+        const symbolMap = new Map(batch.map((s) => [toYahooSymbol(s), s]));
+
+        let filled = 0;
+        for (const item of results) {
+            const stock = symbolMap.get(item.symbol);
+            if (!stock) continue;
+
+            const price = item.regularMarketPrice;
+            if (!price || isNaN(price)) continue;
+
+            // 取得交易時間戳記（Unix 秒）→ 轉為 YYYYMMDD 與 HH:mm
+            const ts = item.regularMarketTime ? item.regularMarketTime * 1000 : Date.now();
+            const dt = new Date(ts);
+            const pad = (n) => String(n).padStart(2, '0');
+            const dateStr =
+                `${dt.getFullYear()}` +
+                pad(dt.getMonth() + 1) +
+                pad(dt.getDate());
+            const timeStr = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+
+            // 組成與 TWSE msgArray 相容的物件
+            const syntheticData = {
+                c: stock.id,
+                z: String(price),
+                o: item.regularMarketOpen != null ? String(item.regularMarketOpen) : '-',
+                h: item.regularMarketDayHigh != null ? String(item.regularMarketDayHigh) : '-',
+                l: item.regularMarketDayLow != null ? String(item.regularMarketDayLow) : '-',
+                v: item.regularMarketVolume != null ? String(item.regularMarketVolume) : '-',
+                d: dateStr,
+                t: timeStr,
+                _source: 'yahoo',
+            };
+
+            bestDataMap.set(stock.id, syntheticData);
+            validStockIds.add(stock.id);
+            filled++;
+            console.log(`  ✓ ${stock.id} [Yahoo] ${dateStr} ${timeStr} z=${price}`);
+        }
+        return filled;
+    });
+
+    const counts = await runWithConcurrency(tasks, YAHOO_CONCURRENCY);
+    const total = counts.reduce((a, b) => a + b, 0);
+    console.log(`🟢 Yahoo Finance fallback 補齊 ${total} 支`);
+}
+
+// ── 處理並儲存批次資料 ──────────────────────────────────────────────────────
+
 // 處理並儲存批次資料
 function processBatchData(stocks, bestDataMap) {
     for (const stock of stocks) {
@@ -283,6 +382,14 @@ async function main() {
 
     // 多批併發抓取
     const bestDataMap = await fetchAllWithConcurrency(stocks);
+
+    // TWSE 抓不到有效成交價的股票，改用 Yahoo Finance 補抓
+    const validStockIds = new Set(
+        [...bestDataMap.entries()]
+            .filter(([, d]) => d && d.z && d.z !== '-' && !isNaN(Number(d.z)))
+            .map(([id]) => id)
+    );
+    await fetchYahooFallback(stocks, bestDataMap, validStockIds);
 
     // 處理並儲存所有資料
     processBatchData(stocks, bestDataMap);
