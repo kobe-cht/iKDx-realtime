@@ -279,6 +279,7 @@ async function getYahooCrumb() {
             (res) => {
                 // 只取 A1S cookie，不讀 body（直接 destroy 節省時間）
                 const rawCookies = res.headers['set-cookie'] || [];
+                console.log(`  [crumb] 首頁 status=${res.statusCode}，Set-Cookie 數量=${rawCookies.length}，names=[${rawCookies.map(c => c.split('=')[0]).join(',')}]`);
                 const a1s = rawCookies.find((c) => c.startsWith('A1S='));
                 res.destroy();
                 resolve(a1s ? a1s.split(';')[0] : null);
@@ -293,6 +294,7 @@ async function getYahooCrumb() {
         console.log('⚠ Yahoo crumb 取得失敗（未能取得 A1S cookie）');
         return null;
     }
+    console.log(`  [crumb] A1S cookie 已取得，長度 ${a1sCookie.length}`);
 
     // Step 2：用 A1S cookie 打 getcrumb（header 很小，axios 可正常處理）
     try {
@@ -309,7 +311,7 @@ async function getYahooCrumb() {
 
         const crumb = typeof crumbRes.data === 'string' ? crumbRes.data.trim() : null;
         if (!crumb || crumb.includes('{')) {
-            console.log('⚠ Yahoo crumb 取得失敗（回傳非預期格式）');
+            console.log(`⚠ Yahoo crumb 取得失敗（回傳非預期格式，status=${crumbRes.status}，data=${JSON.stringify(crumbRes.data).substring(0, 100)}）`);
             return null;
         }
 
