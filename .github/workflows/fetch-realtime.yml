@@ -64,6 +64,17 @@ jobs:
               if: steps.market-check.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
               run: node scripts/fetch-realtime.js
 
+            # 指數與 CNN 各自獨立，失敗不阻擋個股資料的 commit（錯誤仍會顯示在該步驟）
+            - name: Fetch TAIEX realtime
+              if: steps.market-check.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
+              continue-on-error: true
+              run: node scripts/fetch-tw-index-realtime.js
+
+            - name: Fetch CNN Fear & Greed realtime
+              if: steps.market-check.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
+              continue-on-error: true
+              run: node scripts/fetch-cnn-realtime.js
+
             - name: Commit and push changes
               if: steps.market-check.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
               run: |
