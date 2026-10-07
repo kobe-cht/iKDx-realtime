@@ -50,8 +50,8 @@ jobs:
                     exit 0
                   fi
 
-                  # 09:30 ~ 16:00 紐約時間
-                  if [ "$NY_TIME" -ge 0930 ] && [ "$NY_TIME" -le 1600 ]; then
+                  # 09:30 ~ 16:10 紐約時間（含收盤後 16:03 那次，抓最終收盤價）
+                  if [ "$NY_TIME" -ge 0930 ] && [ "$NY_TIME" -le 1610 ]; then
                     echo "US market is open"
                     echo "should_run=true" >> $GITHUB_OUTPUT
                   else
