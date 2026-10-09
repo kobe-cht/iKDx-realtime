@@ -18,9 +18,7 @@ const API_URL = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?inter
 
 // unix 秒 → 台灣時間 [YYYYMMDD, HH:MM:SS]
 function toTaipeiParts(unixSec) {
-    const [date, time] = new Date(unixSec * 1000)
-        .toLocaleString('sv-SE', { timeZone: 'Asia/Taipei' })
-        .split(' ');
+    const [date, time] = new Date(unixSec * 1000).toLocaleString('sv-SE', { timeZone: 'Asia/Taipei' }).split(' ');
     return [date.replace(/-/g, ''), time];
 }
 
@@ -47,16 +45,16 @@ async function main() {
 
     const { regularMarketPrice: price, regularMarketTime: ts, chartPreviousClose: prevClose } = meta;
     if (typeof price !== 'number' || price <= 0 || !ts || typeof prevClose !== 'number') {
-        throw new Error(
-            `Yahoo 指數欄位不完整 (price=${price}, time=${ts}, prevClose=${prevClose})，無法寫入`
-        );
+        throw new Error(`Yahoo 指數欄位不完整 (price=${price}, time=${ts}, prevClose=${prevClose})，無法寫入`);
     }
 
     // 當日開盤價取第一根有值的 1 分 K
     const opens = result.indicators?.quote?.[0]?.open || [];
     const open = opens.find((v) => typeof v === 'number');
 
-    const [date, time] = toTaipeiParts(ts);
+    // Yahoo 指數的 regularMarketTime 收盤後仍會隨更新往後跳，鉗在常規盤結束時間才是收盤時間
+    const regularEnd = meta.currentTradingPeriod?.regular?.end;
+    const [date, time] = toTaipeiParts(regularEnd ? Math.min(ts, regularEnd) : ts);
     const row = [
         date,
         round2(open),
