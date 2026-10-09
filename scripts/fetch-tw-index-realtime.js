@@ -11,8 +11,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
-const API_URL =
-    'https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_t00.tw&json=1&delay=0';
+const API_URL = 'https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_t00.tw&json=1&delay=0';
 
 function toNumber(val) {
     const num = Number(val);
@@ -45,14 +44,16 @@ async function main() {
     }
 
     const prevClose = toNumber(quote.y);
-    const date = String(quote.d || '').replace(/\D/g, '').slice(0, 8);
+    const date = String(quote.d || '')
+        .replace(/\D/g, '')
+        .slice(0, 8);
     if (date.length !== 8 || !quote.t || prevClose === null) {
-        throw new Error(
-            `TWSE 指數欄位不完整 (d=${quote.d}, t=${quote.t}, y=${quote.y})，無法寫入`
-        );
+        throw new Error(`TWSE 指數欄位不完整 (d=${quote.d}, t=${quote.t}, y=${quote.y})，無法寫入`);
     }
 
-    const row = [date, toNumber(quote.o) ?? '-', toNumber(quote.h) ?? '-', toNumber(quote.l) ?? '-', price, '-', quote.t, prevClose];
+    // 收盤後來源時間會是 13:30 之後（如 13:31），統一鉗在 13:30:00 以對齊前端收盤時間判斷
+    const time = quote.t > '13:30:00' ? '13:30:00' : quote.t;
+    const row = [date, toNumber(quote.o) ?? '-', toNumber(quote.h) ?? '-', toNumber(quote.l) ?? '-', price, '-', time, prevClose];
 
     const dirPath = path.join(__dirname, '..', 'public', 'data', 'TAIEX');
     fs.mkdirSync(dirPath, { recursive: true });
