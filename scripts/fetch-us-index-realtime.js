@@ -1,7 +1,7 @@
 /**
- * S&P 500 (SP500) 即時報價抓取腳本
+ * 美股指數（S&P 500 = SP500、費城半導體 = SOX）即時報價抓取腳本
  *
- * 來源：Yahoo Finance chart API（^GSPC，免 API key）。輸出 public/data/SP500/realtime.json，
+ * 來源：Yahoo Finance chart API（^GSPC、^SOX，免 API key）。輸出 public/data/<id>/realtime.json，
  * 格式與其它即時檔對齊並多一欄昨收：
  *   [日期YYYYMMDD, 開, 高, 低, 現價, 成交量("-"), 時間HH:MM:SS, 昨收]
  *
@@ -14,7 +14,10 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
-const API_URL = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?interval=1m&range=1d';
+const INDEX_LIST = [
+    { id: 'SP500', symbol: '%5EGSPC', name: 'S&P 500' },
+    { id: 'SOX', symbol: '%5ESOX', name: '費城半導體' },
+];
 
 // unix 秒 → 台灣時間 [YYYYMMDD, HH:MM:SS]
 function toTaipeiParts(unixSec) {
@@ -26,10 +29,10 @@ function round2(val) {
     return typeof val === 'number' ? +val.toFixed(2) : '-';
 }
 
-async function main() {
-    console.log('🚀 抓取 S&P 500 即時報價 (Yahoo Finance)...');
+async function fetchIndex({ id, symbol, name }) {
+    console.log(`🚀 抓取 ${name} (${id}) 即時報價 (Yahoo Finance)...`);
 
-    const res = await axios.get(API_URL, {
+    const res = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1m&range=1d`, {
         timeout: 15000,
         headers: {
             'User-Agent':
@@ -40,7 +43,7 @@ async function main() {
     const result = res.data?.chart?.result?.[0];
     const meta = result?.meta;
     if (!meta) {
-        throw new Error(`Yahoo 回傳無 chart.result[0].meta (^GSPC)，錯誤: ${JSON.stringify(res.data?.chart?.error)}`);
+        throw new Error(`Yahoo 回傳無 chart.result[0].meta (${symbol})，錯誤: ${JSON.stringify(res.data?.chart?.error)}`);
     }
 
     const { regularMarketPrice: price, regularMarketTime: ts, chartPreviousClose: prevClose } = meta;
@@ -66,13 +69,24 @@ async function main() {
         round2(prevClose),
     ];
 
-    const dirPath = path.join(__dirname, '..', 'public', 'data', 'SP500');
+    const dirPath = path.join(__dirname, '..', 'public', 'data', id);
     fs.mkdirSync(dirPath, { recursive: true });
     fs.writeFileSync(path.join(dirPath, 'realtime.json'), JSON.stringify(row), 'utf-8');
-    console.log(`✓ SP500 已儲存: ${JSON.stringify(row)}`);
+    console.log(`✓ ${id} 已儲存: ${JSON.stringify(row)}`);
 }
 
-main().catch((error) => {
-    console.error('❌ S&P 500 即時抓取失敗:', error.message);
-    process.exit(1);
-});
+async function main() {
+    let failed = 0;
+    // 單一指數失敗不影響其它指數寫入
+    for (const index of INDEX_LIST) {
+        try {
+            await fetchIndex(index);
+        } catch (error) {
+            failed++;
+            console.error(`❌ ${index.name} 即時抓取失敗:`, error.message);
+        }
+    }
+    if (failed > 0) process.exit(1);
+}
+
+main();

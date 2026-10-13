@@ -53,14 +53,14 @@ npm run sync-lists
 
 與個股同一支 workflow、不同腳本，各自獨立（失敗不影響個股資料）：
 
-| 腳本 | 所在 workflow | 輸出 | 來源 |
-| --- | --- | --- | --- |
-| `scripts/fetch-tw-index-realtime.js` | `fetch-realtime.yml`（台股盤中） | `public/data/TAIEX/realtime.json` | TWSE mis `tse_t00.tw` |
-| `scripts/fetch-us-index-realtime.js` | `fetch-us-realtime.yml`（美股盤中） | `public/data/SP500/realtime.json` | Yahoo chart `^GSPC` |
-| `scripts/fetch-cnn-realtime.js` | 兩支 workflow 皆執行 | `public/data/global.json` | CNN fear & greed |
+| 腳本                                 | 所在 workflow                       | 輸出                                                               | 來源                        |
+| ------------------------------------ | ----------------------------------- | ------------------------------------------------------------------ | --------------------------- |
+| `scripts/fetch-tw-index-realtime.js` | `fetch-realtime.yml`（台股盤中）    | `public/data/TAIEX/realtime.json`                                  | TWSE mis `tse_t00.tw`       |
+| `scripts/fetch-us-index-realtime.js` | `fetch-us-realtime.yml`（美股盤中） | `public/data/SP500/realtime.json`、`public/data/SOX/realtime.json` | Yahoo chart `^GSPC`、`^SOX` |
+| `scripts/fetch-cnn-realtime.js`      | 兩支 workflow 皆執行                | `public/data/global.json`                                          | CNN fear & greed            |
 
 指數 `realtime.json` 多一個第 8 欄「昨收」（來源提供），前端用它計算漲跌點數/幅度。
-`SP500` 的日期/時間為台灣時間（與主專案把 SP500 當台灣時段指數處理的慣例一致）。
+`SP500`、`SOX`（費城半導體）的日期/時間為台灣時間（與主專案把美股指數當台灣時段指數處理的慣例一致）。
 `global.json` 格式同主專案 `public/data/global.json`，`cnnUpdateTime` 為台灣時間。
 
 ## 本地測試

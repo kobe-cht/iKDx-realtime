@@ -66,7 +66,7 @@ jobs:
               run: node scripts/fetch-us-realtime.js
 
             # 指數與 CNN 各自獨立，失敗不阻擋個股資料的 commit（錯誤仍會顯示在該步驟）
-            - name: Fetch S&P 500 realtime
+            - name: Fetch US index realtime (S&P 500, SOX)
               if: steps.market-check.outputs.should_run == 'true' || inputs.force == true
               continue-on-error: true
               run: node scripts/fetch-us-index-realtime.js
