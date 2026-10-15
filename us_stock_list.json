@@ -45,6 +45,11 @@
         "type": "us_stock"
     },
     {
+        "id": "TSM",
+        "name": "台積電ADR",
+        "type": "us_stock"
+    },
+    {
         "id": "MSFT",
         "name": "微軟",
         "type": "us_stock"
