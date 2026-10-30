@@ -20,6 +20,11 @@
         "type": "us_stock"
     },
     {
+        "id": "MRVL",
+        "name": "邁威爾科技",
+        "type": "us_stock"
+    },
+    {
         "id": "AVGO",
         "name": "博通",
         "type": "us_stock"
