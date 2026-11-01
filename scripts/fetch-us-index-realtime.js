@@ -71,7 +71,23 @@ async function fetchIndex({ id, symbol, name }) {
 
     const dirPath = path.join(__dirname, '..', 'public', 'data', id);
     fs.mkdirSync(dirPath, { recursive: true });
-    fs.writeFileSync(path.join(dirPath, 'realtime.json'), JSON.stringify(row), 'utf-8');
+    const filePath = path.join(dirPath, 'realtime.json');
+
+    // Yahoo 指數報價有時會落後或回傳較舊的快取（例如 SOX 16:04 NY 那次退回 14:45 的舊值），
+    // 同一日期下若新資料時間比現有檔案更舊，不可覆蓋，避免收盤前後價格倒退
+    if (fs.existsSync(filePath)) {
+        try {
+            const old = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+            if (Array.isArray(old) && old[0] === date && typeof old[6] === 'string' && time < old[6]) {
+                console.log(`⏭ ${id} 新資料時間 ${time} 早於現有 ${old[6]}，保留現有資料`);
+                return;
+            }
+        } catch (e) {
+            console.warn(`⚠ ${id} 讀取現有 realtime.json 失敗，直接覆蓋: ${e.message}`);
+        }
+    }
+
+    fs.writeFileSync(filePath, JSON.stringify(row), 'utf-8');
     console.log(`✓ ${id} 已儲存: ${JSON.stringify(row)}`);
 }
 

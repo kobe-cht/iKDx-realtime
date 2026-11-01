@@ -3,6 +3,7 @@ name: Fetch US Stock Realtime Data
 # 觸發來源：cloudflare-cron-worker 在美股盤中時段呼叫 workflow_dispatch
 # 美股盤中（紐約時間 09:30–16:00）每 10 分鐘由 worker 端觸發
 # workflow 內部仍做一層盤中時段防呆，避免手動誤觸發在收盤後寫入髒資料
+# 收盤後 17:00–18:00（紐約時間）另有補抓，僅更新指數（S&P 500、SOX）的最終收盤價
 on:
     workflow_dispatch:
         inputs:
@@ -44,9 +45,12 @@ jobs:
                   echo "Current NY time: $NY_TIME"
                   echo "Current NY day: $NY_DAY"
 
+                  # 預設皆不執行，下面依時段覆寫
+                  echo "should_run=false" >> $GITHUB_OUTPUT
+                  echo "post_close=false" >> $GITHUB_OUTPUT
+
                   if [ "$NY_DAY" -gt 5 ]; then
                     echo "Weekend - US market is closed"
-                    echo "should_run=false" >> $GITHUB_OUTPUT
                     exit 0
                   fi
 
@@ -54,9 +58,14 @@ jobs:
                   if [ "$NY_TIME" -ge 0930 ] && [ "$NY_TIME" -le 1610 ]; then
                     echo "US market is open"
                     echo "should_run=true" >> $GITHUB_OUTPUT
+                  # 17:00 ~ 18:00 紐約時間：只補抓指數最終收盤價。
+                  # Yahoo 指數報價收盤後要等到約 16:50~17:15 才會更新成定案值，
+                  # 16:04 那次抓到的仍是 15:48 之前的舊值（S&P 500）或更舊的值（SOX）
+                  elif [ "$NY_TIME" -ge 1700 ] && [ "$NY_TIME" -le 1800 ]; then
+                    echo "US post-close index finalize window"
+                    echo "post_close=true" >> $GITHUB_OUTPUT
                   else
                     echo "US market is closed"
-                    echo "should_run=false" >> $GITHUB_OUTPUT
                   fi
 
             - name: Fetch US realtime stock data
@@ -67,7 +76,7 @@ jobs:
 
             # 指數與 CNN 各自獨立，失敗不阻擋個股資料的 commit（錯誤仍會顯示在該步驟）
             - name: Fetch US index realtime (S&P 500, SOX)
-              if: steps.market-check.outputs.should_run == 'true' || inputs.force == true
+              if: steps.market-check.outputs.should_run == 'true' || steps.market-check.outputs.post_close == 'true' || inputs.force == true
               continue-on-error: true
               run: node scripts/fetch-us-index-realtime.js
 
@@ -77,7 +86,7 @@ jobs:
               run: node scripts/fetch-cnn-realtime.js
 
             - name: Commit and push changes
-              if: steps.market-check.outputs.should_run == 'true' || inputs.force == true
+              if: steps.market-check.outputs.should_run == 'true' || steps.market-check.outputs.post_close == 'true' || inputs.force == true
               run: |
                   git config --local user.email "github-actions[bot]@users.noreply.github.com"
                   git config --local user.name "github-actions[bot]"
