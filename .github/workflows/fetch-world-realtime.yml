@@ -1,0 +1,76 @@
+name: Fetch World Market Data
+
+# 觸發來源：cloudflare-cron-worker 以 workflow_dispatch 呼叫（平日每 10 分鐘、週末每小時）
+# 抓 Mapverse 地圖世界需要的資料，輸出到 public/data/world/：
+#   quotes.json   各國指數、商品、匯率、加密貨幣、公債殖利率（world_markets.json 列出的代碼）
+#   tw-top.json   台股市值排行（證交所 OpenAPI）
+on:
+    workflow_dispatch:
+
+# 同時只跑一個，避免兩次執行互相覆蓋 / 推送衝突
+concurrency:
+    group: fetch-world
+    cancel-in-progress: false
+
+jobs:
+    fetch-world:
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+
+        permissions:
+            contents: write
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  cache: 'npm'
+
+            - name: Install dependencies
+              run: npm ci
+
+            # 兩個步驟各自獨立，失敗不阻擋另一個與 commit；最後一步再統一回報失敗
+            - name: Fetch world quotes
+              id: quotes
+              continue-on-error: true
+              run: node scripts/fetch-world-quotes.js
+
+            - name: Fetch Taiwan market cap ranking
+              id: twtop
+              continue-on-error: true
+              run: node scripts/fetch-tw-top.js
+
+            - name: Commit and push changes
+              run: |
+                  git config --local user.email "github-actions[bot]@users.noreply.github.com"
+                  git config --local user.name "github-actions[bot]"
+
+                  if [ -n "$(git status --porcelain public/data/world)" ]; then
+                    git add public/data/world/
+                    TW_TIME=$(TZ=Asia/Taipei date +"%Y-%m-%d %H:%M:%S")
+                    git commit -m "🌏 Update world market data - $TW_TIME"
+                    # 推之前 rebase 避免與台股 / 美股 workflow 同時推送的衝突
+                    for i in 1 2 3 4 5; do
+                      git pull --rebase -X theirs origin main || true
+                      if git push; then
+                        echo "Push succeeded on attempt $i"
+                        break
+                      fi
+                      echo "Push failed (attempt $i), retrying..."
+                      sleep $((RANDOM % 5 + 3))
+                    done
+                  else
+                    echo "No changes to commit"
+                  fi
+
+            - name: Report failures
+              if: steps.quotes.outcome == 'failure' || steps.twtop.outcome == 'failure'
+              run: |
+                  echo "world quotes: ${{ steps.quotes.outcome }}, tw top: ${{ steps.twtop.outcome }}"
+                  exit 1

@@ -6,6 +6,9 @@
   "scripts": {
     "fetch": "node scripts/fetch-realtime.js",
     "fetch-us": "node scripts/fetch-us-realtime.js",
+    "fetch-world": "node scripts/fetch-world-quotes.js",
+    "fetch-tw-top": "node scripts/fetch-tw-top.js",
+    "sync-world": "node scripts/sync-world-markets.js",
     "sync-lists": "node scripts/sync-stock-lists.js"
   },
   "author": "",
