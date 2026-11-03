@@ -220,7 +220,28 @@ const SOURCES = {
     twse: fetchTwse,
     te: fetchTe,
     local: fetchLocal,
+    calc: fetchCalc,
 };
+
+/* ---------- 由其他報價換算（匯率交叉盤的備援） ---------- */
+
+// 例如 澳幣/台幣 = 澳幣/美元 × 美元/台幣；日圓/台幣 = 美元/台幣 ÷ 美元/日圓。
+// 需要 a、b 兩個代碼的報價已經抓好（ctx.quotes），所以含 calc 的項目會排在第二階段（見 needsCtx）
+function fetchCalc(_code, src, ctx) {
+    const a = ctx?.quotes?.[src.a];
+    const b = ctx?.quotes?.[src.b];
+    if (!a || !b) throw new Error(`calc 缺少 ${!a ? src.a : src.b} 的報價`);
+    const op = src.op === 'div' ? (x, y) => x / y : (x, y) => x * y;
+    const p = op(a.p, b.p);
+    const prev = op(a.prev, b.prev);
+    const spark =
+        a.spark.length === b.spark.length && a.spark.length > 2
+            ? a.spark.map((v, i) => +op(v, b.spark[i]).toFixed(4))
+            : null;
+    return makeQuote(p, p - prev, Math.min(a.t, b.t), spark);
+}
+
+const needsCtx = (item) => item.sources.some((s) => s.type === 'calc');
 
 // 報價是否合理：價格與前收必須是正數
 function isValid(q) {
@@ -229,9 +250,10 @@ function isValid(q) {
 
 /**
  * 依序嘗試 item.sources（[{ type, code }]），回傳第一個有效的報價。
+ * ctx.quotes 是已經抓好的報價（calc 來源要用）。
  * @returns {Promise<{ quote: object|null, via: string|null, errors: string[] }>}
  */
-async function fetchChain(item) {
+async function fetchChain(item, ctx) {
     const errors = [];
     for (const src of item.sources) {
         const fn = SOURCES[src.type];
@@ -240,7 +262,7 @@ async function fetchChain(item) {
             continue;
         }
         try {
-            const quote = await fn(src.code);
+            const quote = await fn(src.code, src, ctx);
             if (isValid(quote)) return { quote, via: src.type, errors };
             errors.push(`${src.type}: 報價無效`);
         } catch (e) {
@@ -250,4 +272,4 @@ async function fetchChain(item) {
     return { quote: null, via: null, errors };
 }
 
-module.exports = { SOURCES, fetchChain, parseChart, parseCnbcTime, makeQuote, isValid, num, httpGet, withRetry, sleep };
+module.exports = { SOURCES, fetchChain, needsCtx, parseChart, parseCnbcTime, makeQuote, isValid, num, httpGet, withRetry, sleep, PermanentError };

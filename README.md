@@ -72,12 +72,31 @@ npm run sync-lists
 | ----------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------- |
 | `scripts/fetch-world-quotes.js` | `public/data/world/quotes.json`   | 各國指數、商品、匯率、加密貨幣、公債殖利率（清單見 [`world_markets.json`](world_markets.json)） | Yahoo → CNBC → 證交所 / 櫃買 / 本地即時檔 |
 | `scripts/fetch-tw-top.js`     | `public/data/world/tw-top.json`   | 台股市值排行前 20（收盤價 × 已發行股數）                                                  | 證交所 OpenAPI                          |
+| `scripts/fetch-world-econ.js` | `public/data/world/econ.json`     | 各國經濟數據：物價、就業、GDP、PMI、貿易、台灣景氣燈號等（清單見 [`world_econ.json`](world_econ.json)） | FRED、Eurostat、Trading Economics、國發會 |
 
 `world_markets.json` 每個代碼有一串 `sources`，**依序嘗試**，前一個失敗才換下一個（例如日經 225：Yahoo → CNBC）。
 全部失敗才沿用上一版並標 `stale`；整體成功率低於一半視為來源異常，不覆蓋現有資料；
 報價與上一版相同（休市期間）不重寫檔案，不會產生多餘的 commit。
 可用來源類型：`yahoo`、`cnbc`、`tpex`（櫃買指數）、`twse`（加權指數即時）、`te`（Trading Economics）、
-`local`（沿用上方 `TAIEX` / `SP500` / `SOX` 的 `realtime.json`，不另外連網）。細節見 [`scripts/lib/world-sources.js`](scripts/lib/world-sources.js)。
+`local`（沿用上方 `TAIEX` / `SP500` / `SOX` 的 `realtime.json`，不另外連網）、
+`calc`（由其他報價換算，目前用於台幣交叉盤：例如澳幣/台幣 = 澳幣/美元 × 美元/台幣，且**換算優先**，
+因為 Yahoo 的交叉盤報價偶爾會有壞掉的前收盤，導致漲跌幅失真）。細節見 [`scripts/lib/world-sources.js`](scripts/lib/world-sources.js)。
+
+### 經濟數據（econ.json）
+
+`world_econ.json` 每個指標也有一串 `sources`，但和行情不同：**會全部嘗試，挑期間最新的那個**
+（不同來源更新時間不同，例如 FRED 的密大消費者信心比 Trading Economics 晚一個月），
+後面的來源要新 20 天以上才會取代前面的。其他保護：
+
+- 資料過期檢查：月資料超過 130 天、季資料超過 220 天、週資料超過 45 天視為失敗（來源停更時不會把舊資料當最新）
+- 全部來源失敗才沿用上一版並標 `stale`；整體成功率低於一半不覆蓋
+- 來源類型：`fred`（美國，FRED CSV，可算年增 / 月增 / 月差；用日期找比較期，不數筆數，因為資料偶爾缺月）、
+  `eurostat`（歐元區）、`te`（Trading Economics 各國「指標總覽」頁的表格，同一國家共用一次請求）、
+  `ndc`（國發會景氣對策信號；網站會擋 Node 的連線，所以改用系統的 `curl`）
+- 經濟數據一個月才更新一次，所以每次 workflow 只在上次抓取超過 3 小時（`ECON_MAX_AGE_MIN`，預設 180 分鐘）才真的去抓；
+  手動觸發 workflow 時勾選 `force_econ`（或本機設 `FORCE=1`）可強制重抓
+- 中國、日本、台灣的指標目前只有 Trading Economics 一個來源（這幾個國家沒有可免費、穩定取用的官方 API）；
+  它改版或擋 IP 時，這些指標會沿用上一版，Mapverse 前端再退回 `markets.json` 內手寫的備用值
 
 Mapverse 的 `site/markets.json` 新增代碼後，在本機執行（預設讀取相鄰的 `../Mapverse`，可用 `MAPVERSE_REPO` 指定）：
 
@@ -85,10 +104,11 @@ Mapverse 的 `site/markets.json` 新增代碼後，在本機執行（預設讀�
 npm run sync-world            # 補上新代碼（預設 Yahoo 來源）；--prune 移除 Mapverse 已不存在的代碼
 ```
 
-再視需要手動為新代碼加備援來源，然後 commit & push。
+再視需要手動為新代碼加備援來源，然後 commit & push。經濟數據的指標則直接編輯 `world_econ.json`。
 
 `quotes.json` 格式：`{ generated, ok, total, quotes: { <代碼>: { p 現價, c 漲跌, pct 漲跌幅%, prev 前收, t 報價時間(unix 秒), spark 近幾日收盤, stale? } } }`。
 `tw-top.json` 格式：`{ generated, date, top: [{ rk, s, name, cap(兆元), p, c, pct, ind, addr }] }`。
+`econ.json` 格式：`{ generated, ok, total, items: { <指標代碼>: { v 最新值, prev 前一期, d 變動, unit 單位, ref 期間('2026-09' | '2026-Q3' | '2026-10-24'), via 來源, light? 燈號, stale? } } }`。
 
 ## 本地測試
 
@@ -99,6 +119,7 @@ npm install
 # 執行抓取
 npm run fetch
 npm run fetch-world
+npm run fetch-world-econ      # FORCE=1 略過 3 小時間隔
 npm run fetch-tw-top
 ```
 

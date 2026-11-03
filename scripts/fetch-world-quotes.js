@@ -13,7 +13,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { fetchChain } = require('./lib/world-sources');
+const { fetchChain, needsCtx } = require('./lib/world-sources');
 
 const ROOT = path.join(__dirname, '..');
 const OUT_FILE = path.join(ROOT, 'public', 'data', 'world', 'quotes.json');
@@ -47,14 +47,24 @@ async function main() {
     const prev = loadPrev();
     console.log(`🚀 抓取世界行情，共 ${items.length} 個代碼...`);
 
-    const results = await runPool(items, async (item) => ({ item, ...(await fetchChain(item)) }));
-
+    const results = [];
     const quotes = {};
+    // 第一階段：一般項目；第二階段：含 calc 備援的項目（要用到第一階段抓好的報價）
+    const phase1 = items.filter((i) => !needsCtx(i));
+    const phase2 = items.filter(needsCtx);
+    const ctx = { quotes };
+    for (const batch of [phase1, phase2]) {
+        const out = await runPool(batch, async (item) => ({ item, ...(await fetchChain(item, ctx)) }));
+        for (const r of out) {
+            results.push(r);
+            if (r.quote) quotes[r.item.s] = r.quote;
+        }
+    }
+
     const failed = [];
     const fellBack = [];
     for (const { item, quote, via, errors } of results) {
         if (quote) {
-            quotes[item.s] = quote;
             // 主要來源（第一個）失敗而由備援補上的，列出來方便追蹤哪個來源壞了
             if (errors.length) fellBack.push(`${item.s} 改由 ${via}（${errors.join('；')}）`);
         } else {
