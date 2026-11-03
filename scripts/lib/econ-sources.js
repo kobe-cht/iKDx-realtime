@@ -191,9 +191,13 @@ async function fetchNdc() {
     const jar = path.join(os.tmpdir(), `ndc-${process.pid}-${Date.now()}.txt`);
     try {
         return await withRetry(async () => {
-            const home = await curl(['-c', jar, '-b', jar, 'https://index.ndc.gov.tw/n/zh_tw']);
+            const home = await curl(['-c', jar, '-b', jar, '-w', '\n__HTTP__%{http_code}', 'https://index.ndc.gov.tw/n/zh_tw']);
             const token = /csrf-token" content="([^"]+)"/.exec(home)?.[1];
-            if (!token) throw new Error('NDC 首頁找不到 csrf-token（被擋或網站改版）');
+            if (!token) {
+                const code = /__HTTP__(\d+)\s*$/.exec(home)?.[1];
+                const head = home.replace(/\s+/g, ' ').replace(/__HTTP__\d+\s*$/, '').trim().slice(0, 100);
+                throw new Error(`NDC 首頁找不到 csrf-token（HTTP ${code}，被擋或網站改版）：${head}`);
+            }
             const body = await curl([
                 '-c', jar, '-b', jar, '-X', 'POST', '-d', '',
                 '-H', `X-CSRF-TOKEN: ${token}`,
