@@ -97,6 +97,10 @@ npm run sync-lists
   手動觸發 workflow 時勾選 `force_econ`（或本機設 `FORCE=1`）可強制重抓
 - 中國、日本、台灣的指標目前只有 Trading Economics 一個來源（這幾個國家沒有可免費、穩定取用的官方 API）；
   它改版或擋 IP 時，這些指標會沿用上一版，Mapverse 前端再退回 `markets.json` 內手寫的備用值
+- **景氣燈號（`ndc`）在 GitHub Actions 上會被 Cloudflare 擋掉（HTTP 403，擋的是機房 IP）**，本機則可以。
+  所以雲端抓不到時會沿用上一版並標 `stale`；國發會每月 27 日左右公布新燈號後，在本機執行
+  `FORCE=1 npm run fetch-world-econ`，再 commit & push `public/data/world/econ.json` 即可。
+  （想全自動：可以在 cloudflare-cron-worker 加一個代抓的端點，Cloudflare 對自家 Worker 的連線通常不擋，但尚未驗證。）
 
 Mapverse 的 `site/markets.json` 新增代碼後，在本機執行（預設讀取相鄰的 `../Mapverse`，可用 `MAPVERSE_REPO` 指定）：
 
