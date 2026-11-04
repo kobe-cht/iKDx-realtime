@@ -1,5 +1,5 @@
 {
-  "_說明": "Mapverse「經濟數據」主題要抓的指標。每個指標的 sources 依序嘗試，前一個失敗（或資料過期）才換下一個。period：month（預設）/ quarter / week。fred 的 mode：level 原值、yoy 年增、mom 月增、diff 月差。來源類型見 scripts/lib/econ-sources.js。",
+  "_說明": "Mapverse「經濟數據」主題要抓的指標。每個指標的 sources 依序嘗試，前一個失敗（或資料過期）才換下一個。period：month（預設）/ quarter / week / rate（央行利率，容許資料較久沒變）。fred 的 mode：level 原值、yoy 年增、mom 月增、diff 月差。來源類型見 scripts/lib/econ-sources.js。",
   "items": [
     {"id": "US_CPI", "sources": [{"type": "fred", "id": "CPIAUCNS", "mode": "yoy"}, {"type": "te", "path": "united-states/inflation-cpi"}]},
     {"id": "US_CORE_CPI", "sources": [{"type": "fred", "id": "CPILFENS", "mode": "yoy"}, {"type": "te", "path": "united-states/core-inflation-rate"}]},
@@ -33,6 +33,12 @@
     {"id": "TW_EXPORT", "sources": [{"type": "te", "path": "taiwan/exports-yoy"}]},
     {"id": "TW_CPI", "sources": [{"type": "te", "path": "taiwan/inflation-cpi"}]},
     {"id": "TW_UNRATE", "sources": [{"type": "te", "path": "taiwan/unemployment-rate"}]},
-    {"id": "TW_GDP", "period": "quarter", "sources": [{"type": "te", "path": "taiwan/gdp-growth-annual"}]}
+    {"id": "TW_GDP", "period": "quarter", "sources": [{"type": "te", "path": "taiwan/gdp-growth-annual"}]},
+    {"id": "US_RATE", "period": "rate", "sources": [{"type": "fred", "id": "DFEDTARU", "lowId": "DFEDTARL"}, {"type": "te", "path": "united-states/interest-rate"}]},
+    {"id": "EU_RATE", "period": "rate", "sources": [{"type": "fred", "id": "ECBMRRFR"}, {"type": "te", "path": "euro-area/interest-rate"}]},
+    {"id": "JP_RATE", "period": "rate", "sources": [{"type": "te", "path": "japan/interest-rate"}]},
+    {"id": "CN_RATE", "period": "rate", "sources": [{"type": "te", "path": "china/interest-rate"}]},
+    {"id": "TW_RATE", "period": "rate", "sources": [{"type": "te", "path": "taiwan/interest-rate"}]},
+    {"id": "UK_RATE", "period": "rate", "sources": [{"type": "te", "path": "united-kingdom/interest-rate"}]}
   ]
 }

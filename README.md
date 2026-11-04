@@ -4,7 +4,7 @@
 
 ## 功能
 
-透過 GitHub Actions 自動在台灣時間每週一到週五 9:00 至 13:35 期間，每 6 分鐘抓取一次目標股票的即時股價。
+透過 GitHub Actions 在台灣時間每週一到週五 9:00 至 13:50 期間抓取目標股票的即時股價。工作流程由專案外部的 cloudflare-cron-worker 約每 10 分鐘觸發一次（排程設定在 worker，不在本專案；見下方「GitHub Actions」）。
 
 ## 目標股票清單
 
@@ -73,7 +73,7 @@ npm run sync-lists
 | `scripts/fetch-world-quotes.js` | `public/data/world/quotes.json`   | 各國指數、商品、匯率、加密貨幣、公債殖利率（清單見 [`world_markets.json`](world_markets.json)） | Yahoo → CNBC → 證交所 / 櫃買 / 本地即時檔 |
 | `scripts/fetch-tw-top.js`     | `public/data/world/tw-top.json`   | 台股市值排行前 20（收盤價 × 已發行股數）                                                  | 證交所 OpenAPI                          |
 | `scripts/fetch-world-top.js`  | `public/data/world/top10.json`    | 其它十個國家 / 地區（中日韓印英德法美加港）的市值前十大公司（候選名單見 [`world_top.json`](world_top.json)） | Yahoo quote（需 crumb）                  |
-| `scripts/fetch-world-econ.js` | `public/data/world/econ.json`     | 各國經濟數據：物價、就業、GDP、PMI、貿易、台灣景氣燈號等（清單見 [`world_econ.json`](world_econ.json)） | FRED、Eurostat、Trading Economics、國發會 |
+| `scripts/fetch-world-econ.js` | `public/data/world/econ.json`     | 各國經濟數據：物價、就業、GDP、PMI、貿易、台灣景氣燈號、六家央行政策利率等（清單見 [`world_econ.json`](world_econ.json)） | FRED、Eurostat、Trading Economics、國發會 |
 
 `world_markets.json` 每個代碼有一串 `sources`，**依序嘗試**，前一個失敗才換下一個（例如日經 225：Yahoo → CNBC）。
 全部失敗才沿用上一版並標 `stale`；整體成功率低於一半視為來源異常，不覆蓋現有資料；
@@ -89,11 +89,14 @@ npm run sync-lists
 （不同來源更新時間不同，例如 FRED 的密大消費者信心比 Trading Economics 晚一個月），
 後面的來源要新 20 天以上才會取代前面的。其他保護：
 
-- 資料過期檢查：月資料超過 130 天、季資料超過 220 天、週資料超過 45 天視為失敗（來源停更時不會把舊資料當最新）
+- 資料過期檢查：月資料超過 130 天、季資料超過 220 天、週資料超過 45 天視為失敗（來源停更時不會把舊資料當最新）；
+  央行政策利率（`period: "rate"`）放寬到 400 天，因為利率可以很久不變，來源標示的月份可能是上次調整的月份
 - 全部來源失敗才沿用上一版並標 `stale`；整體成功率低於一半不覆蓋
 - 來源類型：`fred`（美國，FRED CSV，可算年增 / 月增 / 月差；用日期找比較期，不數筆數，因為資料偶爾缺月）、
   `eurostat`（歐元區）、`te`（Trading Economics 各國「指標總覽」頁的表格，同一國家共用一次請求）、
   `ndc`（國發會景氣對策信號；網站會擋 Node 的連線，所以改用系統的 `curl`）
+- 央行政策利率（`US_RATE`、`EU_RATE`、`JP_RATE`、`CN_RATE`、`TW_RATE`、`UK_RATE`）：美國用 FRED 的 `DFEDTARU`（目標上限）與 `DFEDTARL`（下限，`lowId`，輸出多一個 `lo`），
+  歐洲央行用 FRED 的 `ECBMRRFR`，其餘四國用 Trading Economics 各國頁的「Interest Rate」那一列（備援：美、歐的 Trading Economics）
 - 經濟數據一個月才更新一次，所以每次 workflow 只在上次抓取超過 3 小時（`ECON_MAX_AGE_MIN`，預設 180 分鐘）才真的去抓；
   手動觸發 workflow 時勾選 `force_econ`（或本機設 `FORCE=1`）可強制重抓
 - 中國、日本、台灣的指標目前只有 Trading Economics 一個來源（這幾個國家沒有可免費、穩定取用的官方 API）；
@@ -147,7 +150,7 @@ npm run fetch-world-top
 
 ## GitHub Actions
 
-工作流程由 cloudflare-cron-worker 以 `workflow_dispatch` 觸發，每 10 分鐘一次：
+工作流程檔裡沒有 cron；由專案外部的 cloudflare-cron-worker 以 `workflow_dispatch` 觸發，大約每 10 分鐘一次（實際頻率以 worker 的設定為準）：
 
 - 台股：台灣時間週一至週五 09:00 - 13:50
 - 美股：紐約時間週一至週五 09:30 - 16:10（含收盤後 16:03 抓最終收盤價）

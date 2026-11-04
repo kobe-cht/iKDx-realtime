@@ -3,7 +3,8 @@
  *
  * 每個來源回傳統一格式：{ v 最新值, prev 前一期, unit 單位, ref 期間('YYYY-MM' | 'YYYY-Qn' | 'YYYY-MM-DD'), light? }
  * world_econ.json 每個指標的 sources 會全部嘗試，挑期間最新的那個（見 fetchEconChain）：
- *   fred      美國聖路易聯儲 FRED 的 CSV（官方統計的轉載，不用 API key）。可換算：level 原值、yoy 年增、mom 月增、diff 月差
+ *   fred      美國聖路易聯儲 FRED 的 CSV（官方統計的轉載，不用 API key）。可換算：level 原值、yoy 年增、mom 月增、diff 月差；
+ *             lowId 可再指定一個序列當下限（輸出多一個 lo，用於聯邦基金利率的目標區間）
  *   eurostat  歐盟統計局 Eurostat 的 JSON API（歐元區）
  *   te        Trading Economics 各國「指標總覽」頁的表格（最新值、前值、單位、期間），同一國家的指標共用一次請求
  *   ndc       國發會景氣對策信號（台灣景氣燈號）
@@ -46,7 +47,8 @@ function refEnd(ref) {
 }
 
 // 各種期間允許的最大資料年齡（天）。超過代表來源已經停更或抓到舊資料，視為失敗而不是當作最新值
-const MAX_AGE_DAYS = { month: 130, quarter: 220, week: 45 };
+// rate：央行政策利率。利率可以很久不變，來源標示的月份可能是上次調整的月份，所以放寬到 400 天；顯示時仍當月資料
+const MAX_AGE_DAYS = { month: 130, quarter: 220, week: 45, rate: 400 };
 const FRESHER_MS = 20 * 86400e3;
 
 /* ---------- FRED ---------- */
@@ -94,12 +96,18 @@ async function fetchFred(src) {
         // 前一期：月資料用「上個月」的日期；週資料（level）直接取前一筆
         const prev = mode === 'level' ? rows[n - 2][1] : by.has(shiftMonth(d1, -1)) ? calc(shiftMonth(d1, -1)) : NaN;
         const scale = src.scale || 1;
-        return {
+        const out = {
             v: r4(v * scale),
             prev: Number.isFinite(prev) ? r4(prev * scale) : null,
             unit: src.unit || '',
             ref: normRef(d1, src.period),
         };
+        // lowId：另一個 FRED 序列當「下限」（聯邦基金利率是目標區間，上限 DFEDTARU、下限 DFEDTARL），結果多一個 lo 欄位
+        if (src.lowId) {
+            const lo = await fetchFred({ id: src.lowId, mode: 'level', period: src.period });
+            out.lo = lo.v;
+        }
+        return out;
     }, 2);
 }
 
