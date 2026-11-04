@@ -22,6 +22,7 @@ const BASIC_URL = 'https://openapi.twse.com.tw/v1/opendata/t187ap03_L';
 const DAY_URL = 'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL';
 const TOP_N = 20;
 const MIN_COMPANIES = 800; // 少於這個數量視為來源異常
+const REALTIME_DIR = path.join(ROOT, 'public', 'data');
 
 // 證交所「產業別」代碼
 const INDUSTRY = {
@@ -71,6 +72,43 @@ function rank(basics, days, topN = TOP_N) {
     };
 }
 
+// 讀個股即時檔（iKDx 自選股用的同一份）：[日期YYYYMMDD, 開, 高, 低, 現價, 成交量, 時間HH:MM:SS]
+function readRealtime(code, dir = REALTIME_DIR) {
+    try {
+        const r = JSON.parse(fs.readFileSync(path.join(dir, code, 'realtime.json'), 'utf-8'));
+        const price = Number(r[4]);
+        return /^\d{8}$/.test(String(r[0])) && Number.isFinite(price) && price > 0 ? { date: String(r[0]), price, time: r[6] } : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * 把「現價與漲跌幅」換成最新的即時價（排名與市值排序仍用證交所收盤資料，才不會因盤中雜訊亂跳）。
+ * 證交所 STOCK_DAY_ALL 盤中是「前一個交易日」的收盤，收盤後才變成當天：
+ *   - 即時資料日期 > 證交所資料日期（盤中）：昨收 = 證交所收盤價 p，現價 = 即時價
+ *   - 即時資料日期 <= 證交所資料日期（收盤後 / 沒有即時資料）：維持證交所的收盤價與漲跌
+ * 即時價不可信時（缺檔、日期比證交所舊）一律不動，不會讓畫面出現怪數字。
+ */
+function applyRealtime(top, dayIso, read = readRealtime) {
+    const dayYmd = dayIso.replace(/-/g, '');
+    return top.map((t) => {
+        const rt = read(t.s);
+        if (!rt || rt.date <= dayYmd) return t;
+        const prev = t.p;
+        const change = +(rt.price - prev).toFixed(4);
+        return {
+            ...t,
+            p: rt.price,
+            c: change,
+            pct: prev > 0 ? +((change / prev) * 100).toFixed(2) : 0,
+            // 市值也跟著現價走（排名順序不動）。cap = 昨收市值 × 現價 / 昨收
+            cap: prev > 0 ? +((t.cap * rt.price) / prev).toFixed(3) : t.cap,
+            live: `${rt.date.slice(4, 6)}/${rt.date.slice(6, 8)} ${String(rt.time || '').slice(0, 5)}`,
+        };
+    });
+}
+
 async function main() {
     console.log('🚀 抓取台股市值排行 (證交所 OpenAPI)...');
     const [basics, days] = await Promise.all([
@@ -79,12 +117,16 @@ async function main() {
     ]);
     if (!Array.isArray(basics) || !Array.isArray(days)) throw new Error('證交所回傳格式不是陣列');
 
-    const { total, top } = rank(basics, days);
+    const ranked = rank(basics, days);
+    const { total } = ranked;
     if (total < MIN_COMPANIES) throw new Error(`可計算市值的公司只有 ${total} 家，來源可能異常，不寫入`);
-    if (top[0]?.s !== '2330') throw new Error(`市值第一名是 ${top[0]?.s}，不是台積電，資料可能有誤，不寫入`);
+    if (ranked.top[0]?.s !== '2330') throw new Error(`市值第一名是 ${ranked.top[0]?.s}，不是台積電，資料可能有誤，不寫入`);
 
     const date = rocToIso(days.find((d) => d.Date)?.Date);
     if (!date) throw new Error('收盤資料沒有日期');
+    const top = applyRealtime(ranked.top, date);
+    const liveN = top.filter((t) => t.live).length;
+    console.log(`📈 即時價套用 ${liveN}/${top.length} 檔（證交所收盤資料日期 ${date}）`);
 
     let prevTop = null;
     try {
@@ -110,4 +152,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { rank, rocToIso };
+module.exports = { rank, rocToIso, applyRealtime, readRealtime };
