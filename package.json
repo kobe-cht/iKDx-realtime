@@ -9,6 +9,7 @@
     "fetch-world": "node scripts/fetch-world-quotes.js",
     "fetch-world-econ": "node scripts/fetch-world-econ.js",
     "fetch-tw-top": "node scripts/fetch-tw-top.js",
+    "fetch-world-top": "node scripts/fetch-world-top.js",
     "sync-world": "node scripts/sync-world-markets.js",
     "sync-lists": "node scripts/sync-stock-lists.js"
   },

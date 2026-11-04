@@ -72,6 +72,7 @@ npm run sync-lists
 | ----------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------- |
 | `scripts/fetch-world-quotes.js` | `public/data/world/quotes.json`   | 各國指數、商品、匯率、加密貨幣、公債殖利率（清單見 [`world_markets.json`](world_markets.json)） | Yahoo → CNBC → 證交所 / 櫃買 / 本地即時檔 |
 | `scripts/fetch-tw-top.js`     | `public/data/world/tw-top.json`   | 台股市值排行前 20（收盤價 × 已發行股數）                                                  | 證交所 OpenAPI                          |
+| `scripts/fetch-world-top.js`  | `public/data/world/top10.json`    | 其它九個十大市值國家（中日韓印英德法美加）的市值前十大公司（候選名單見 [`world_top.json`](world_top.json)） | Yahoo quote（需 crumb）                  |
 | `scripts/fetch-world-econ.js` | `public/data/world/econ.json`     | 各國經濟數據：物價、就業、GDP、PMI、貿易、台灣景氣燈號等（清單見 [`world_econ.json`](world_econ.json)） | FRED、Eurostat、Trading Economics、國發會 |
 
 `world_markets.json` 每個代碼有一串 `sources`，**依序嘗試**，前一個失敗才換下一個（例如日經 225：Yahoo → CNBC）。
@@ -112,6 +113,20 @@ npm run sync-world            # 補上新代碼（預設 Yahoo 來源）；--pru
 
 `quotes.json` 格式：`{ generated, ok, total, quotes: { <代碼>: { p 現價, c 漲跌, pct 漲跌幅%, prev 前收, t 報價時間(unix 秒), spark 近幾日收盤, stale? } } }`。
 `tw-top.json` 格式：`{ generated, date, top: [{ rk, s, name, cap(兆元), p, c, pct, ind, addr }] }`。
+`top10.json` 格式：`{ generated, countries: { <國家代碼 cn/jp/kr/in/uk/de/fr/us/ca>: { date, t 最新報價時間(unix 秒), cur 幣別, title 旗幟上的分隔標題, top: [{ rk, s, name, cap(兆元，本地幣別), p, c, pct }] } } }`。
+
+### 各國市值前十大（top10.json）
+
+台灣有證交所的官方開放資料（全市場股數 + 收盤價），其它國家沒有等價的免費來源，所以改用「候選名單」做法：
+[`world_top.json`](world_top.json) 每國列約 15~20 家大型股的 Yahoo 代碼與中文名，腳本一次用 Yahoo 的 `v7/finance/quote`
+（`scripts/lib/yahoo-quote.js`，先取 cookie + crumb）查全部候選，依市值（本地幣別）排序後取前 10 名。
+
+- 市值、現價、漲跌幅都是 Yahoo 的盤中資料（約延遲 15 分鐘）；倫敦的股價原本是便士，腳本會換成英鎊
+- 候選名單要比十家多一些，排名才會隨市值變動；公司掉出前段班或新公司崛起時，編輯 `world_top.json`。同一家公司只放一個掛牌代碼，且用該國本地掛牌的代碼（市值才是同一種幣別）
+- 中國只算 A 股（上交所 / 深交所）；Yahoo 對同時有 H 股的公司，市值口徑可能和各家網站略有差異
+- 單一國家可用的候選不到 10 家，沿用上一版那一國並讓腳本以失敗結束（workflow 會回報，其它國家照常更新）；成功的國家少於 5 個視為來源異常，不寫入；排行與上一版相同不重寫檔案
+- Yahoo 是非官方介面，crumb 偶爾被限流或改版；失敗時網頁自動不顯示那一國的公司列
+
 `econ.json` 格式：`{ generated, ok, total, items: { <指標代碼>: { v 最新值, prev 前一期, d 變動, unit 單位, ref 期間('2026-09' | '2026-Q3' | '2026-10-24'), via 來源, light? 燈號, stale? } } }`。
 
 ## 本地測試
@@ -125,6 +140,7 @@ npm run fetch
 npm run fetch-world
 npm run fetch-world-econ      # FORCE=1 略過 3 小時間隔
 npm run fetch-tw-top
+npm run fetch-world-top
 ```
 
 > 本機在 HTTP proxy 後面時，axios 會被擋（HTTP 400）：加上環境變數 `NODE_USE_ENV_PROXY=1`（Node 24+）即可。GitHub Actions 不需要。
