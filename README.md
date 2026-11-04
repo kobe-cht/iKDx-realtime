@@ -72,7 +72,7 @@ npm run sync-lists
 | ----------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------- |
 | `scripts/fetch-world-quotes.js` | `public/data/world/quotes.json`   | 各國指數、商品、匯率、加密貨幣、公債殖利率（清單見 [`world_markets.json`](world_markets.json)） | Yahoo → CNBC → 證交所 / 櫃買 / 本地即時檔 |
 | `scripts/fetch-tw-top.js`     | `public/data/world/tw-top.json`   | 台股市值排行前 20（收盤價 × 已發行股數）                                                  | 證交所 OpenAPI                          |
-| `scripts/fetch-world-top.js`  | `public/data/world/top10.json`    | 其它九個十大市值國家（中日韓印英德法美加）的市值前十大公司（候選名單見 [`world_top.json`](world_top.json)） | Yahoo quote（需 crumb）                  |
+| `scripts/fetch-world-top.js`  | `public/data/world/top10.json`    | 其它十個國家 / 地區（中日韓印英德法美加港）的市值前十大公司（候選名單見 [`world_top.json`](world_top.json)） | Yahoo quote（需 crumb）                  |
 | `scripts/fetch-world-econ.js` | `public/data/world/econ.json`     | 各國經濟數據：物價、就業、GDP、PMI、貿易、台灣景氣燈號等（清單見 [`world_econ.json`](world_econ.json)） | FRED、Eurostat、Trading Economics、國發會 |
 
 `world_markets.json` 每個代碼有一串 `sources`，**依序嘗試**，前一個失敗才換下一個（例如日經 225：Yahoo → CNBC）。
@@ -113,7 +113,7 @@ npm run sync-world            # 補上新代碼（預設 Yahoo 來源）；--pru
 
 `quotes.json` 格式：`{ generated, ok, total, quotes: { <代碼>: { p 現價, c 漲跌, pct 漲跌幅%, prev 前收, t 報價時間(unix 秒), spark 近幾日收盤, stale? } } }`。
 `tw-top.json` 格式：`{ generated, date, top: [{ rk, s, name, cap(兆元), p, c, pct, ind, addr }] }`。
-`top10.json` 格式：`{ generated, countries: { <國家代碼 cn/jp/kr/in/uk/de/fr/us/ca>: { date, t 最新報價時間(unix 秒), cur 幣別, title 旗幟上的分隔標題, top: [{ rk, s, name, cap(兆元，本地幣別), p, c, pct }] } } }`。
+`top10.json` 格式：`{ generated, countries: { <國家代碼 cn/jp/kr/in/uk/de/fr/us/ca/hk>: { date, t 最新報價時間(unix 秒), cur 幣別, title 旗幟上的分隔標題, top: [{ rk, s, name, cap(兆元，本地幣別), p, c, pct }] } } }`。
 
 ### 各國市值前十大（top10.json）
 

@@ -4,7 +4,7 @@ name: Fetch World Market Data
 # 抓 Mapverse 地圖世界需要的資料，輸出到 public/data/world/：
 #   quotes.json   各國指數、商品、匯率、加密貨幣、公債殖利率（world_markets.json 列出的代碼）
 #   tw-top.json   台股市值排行（證交所 OpenAPI）
-#   top10.json    其它九個十大市值國家（中日韓印英德法美加）的市值前十大公司（Yahoo quote，候選名單見 world_top.json）
+#   top10.json    其它十個國家 / 地區（中日韓印英德法美加港）的市值前十大公司（Yahoo quote，候選名單見 world_top.json）
 #   econ.json     各國經濟數據（world_econ.json 列出的指標；一個月才更新一次，所以每 3 小時才真的去抓）
 on:
     workflow_dispatch:
@@ -77,7 +77,7 @@ jobs:
                     git commit -m "🌏 Update world market data - $TW_TIME"
                     # 推之前 rebase 避免與台股 / 美股 workflow 同時推送的衝突
                     for i in 1 2 3 4 5; do
-                      git pull --rebase -X theirs origin main || true
+                      git pull --rebase -X ours origin main || true
                       if git push; then
                         echo "Push succeeded on attempt $i"
                         break
