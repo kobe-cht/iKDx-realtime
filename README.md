@@ -63,9 +63,9 @@ npm run sync-lists
 `SP500`、`SOX`（費城半導體）的日期/時間為台灣時間（與主專案把美股指數當台灣時段指數處理的慣例一致）。
 `global.json` 格式同主專案 `public/data/global.json`，`cnnUpdateTime` 為台灣時間。
 
-## 世界行情（Mapverse 地圖世界）
+## 世界行情（Mapverse 環遊股村）
 
-[Mapverse](https://github.com/17Kobe/Mapverse) 的股市頁所需的資料**全部由本專案抓取**（Mapverse 自己不再有爬蟲），
+[Mapverse](https://github.com/17Kobe/Mapverse)（環遊股村）的股市頁所需的資料**全部由本專案抓取**（Mapverse 自己不再有爬蟲），
 輸出在 `public/data/world/`，由 Cloudflare Pages 以 `https://<本專案網域>/data/world/…` 提供（已開放 CORS）。
 
 | 腳本                          | 輸出                              | 內容                                                                                      | 來源                                    |
@@ -74,6 +74,7 @@ npm run sync-lists
 | `scripts/fetch-tw-top.js`     | `public/data/world/tw-top.json`   | 台股市值排行前 20（收盤價 × 已發行股數）                                                  | 證交所 OpenAPI                          |
 | `scripts/fetch-world-top.js`  | `public/data/world/top10.json`    | 其它十個國家 / 地區（中日韓印英德法美加港）的市值前十大公司（候選名單見 [`world_top.json`](world_top.json)） | Yahoo quote（需 crumb）                  |
 | `scripts/fetch-world-econ.js` | `public/data/world/econ.json`     | 各國經濟數據：物價、就業、GDP、PMI、貿易、台灣景氣燈號、六家央行政策利率等（清單見 [`world_econ.json`](world_econ.json)） | FRED、Eurostat、Trading Economics、國發會 |
+| `scripts/fetch-world-fng.js`  | `public/data/world/fng.json`      | CNN 貪婪與恐慌指數（概況卡的情緒條）；`{ generated, score 0~100, rating, updated, prev: { close, week, month, year } }`，失敗沿用上一版 | CNN dataviz API                         |
 
 `world_markets.json` 每個代碼有一串 `sources`，**依序嘗試**，前一個失敗才換下一個（例如日經 225：Yahoo → CNBC）。
 全部失敗才沿用上一版並標 `stale`；整體成功率低於一半視為來源異常，不覆蓋現有資料；
@@ -144,7 +145,7 @@ npm run fetch-world
 npm run fetch-world-econ      # FORCE=1 略過 3 小時間隔
 npm run fetch-tw-top
 npm run fetch-world-top
-```
+npm run fetch-world-fng
 
 > 本機在 HTTP proxy 後面時，axios 會被擋（HTTP 400）：加上環境變數 `NODE_USE_ENV_PROXY=1`（Node 24+）即可。GitHub Actions 不需要。
 

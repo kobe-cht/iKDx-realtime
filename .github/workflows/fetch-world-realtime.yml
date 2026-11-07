@@ -6,6 +6,7 @@ name: Fetch World Market Data
 #   tw-top.json   台股市值排行（證交所 OpenAPI）
 #   top10.json    其它十個國家 / 地區（中日韓印英德法美加港）的市值前十大公司（Yahoo quote，候選名單見 world_top.json）
 #   econ.json     各國經濟數據（world_econ.json 列出的指標；一個月才更新一次，所以每 3 小時才真的去抓）
+#   fng.json      CNN 貪婪與恐慌指數（概況卡的情緒條）
 on:
     workflow_dispatch:
         inputs:
@@ -43,7 +44,7 @@ jobs:
             - name: Install dependencies
               run: npm ci
 
-            # 四個步驟各自獨立，失敗不阻擋其它步驟與 commit；最後一步再統一回報失敗
+            # 五個步驟各自獨立，失敗不阻擋其它步驟與 commit；最後一步再統一回報失敗
             - name: Fetch world quotes
               id: quotes
               continue-on-error: true
@@ -65,6 +66,11 @@ jobs:
               run: node scripts/fetch-world-econ.js
               env:
                   FORCE: ${{ inputs.force_econ == true && '1' || '' }}
+
+            - name: Fetch CNN fear and greed index
+              id: fng
+              continue-on-error: true
+              run: node scripts/fetch-world-fng.js
 
             - name: Commit and push changes
               run: |
@@ -90,7 +96,7 @@ jobs:
                   fi
 
             - name: Report failures
-              if: steps.quotes.outcome == 'failure' || steps.twtop.outcome == 'failure' || steps.worldtop.outcome == 'failure' || steps.econ.outcome == 'failure'
+              if: steps.quotes.outcome == 'failure' || steps.twtop.outcome == 'failure' || steps.worldtop.outcome == 'failure' || steps.econ.outcome == 'failure' || steps.fng.outcome == 'failure'
               run: |
-                  echo "world quotes: ${{ steps.quotes.outcome }}, tw top: ${{ steps.twtop.outcome }}, world top: ${{ steps.worldtop.outcome }}, econ: ${{ steps.econ.outcome }}"
+                  echo "world quotes: ${{ steps.quotes.outcome }}, tw top: ${{ steps.twtop.outcome }}, world top: ${{ steps.worldtop.outcome }}, econ: ${{ steps.econ.outcome }}, fng: ${{ steps.fng.outcome }}"
                   exit 1
