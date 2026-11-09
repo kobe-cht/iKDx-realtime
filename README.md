@@ -63,9 +63,9 @@ npm run sync-lists
 `SP500`、`SOX`（費城半導體）的日期/時間為台灣時間（與主專案把美股指數當台灣時段指數處理的慣例一致）。
 `global.json` 格式同主專案 `public/data/global.json`，`cnnUpdateTime` 為台灣時間。
 
-## 世界行情（Mapverse 環遊股村）
+## 世界行情（Mapverse 股市村）
 
-[Mapverse](https://github.com/17Kobe/Mapverse)（環遊股村）的股市頁所需的資料**全部由本專案抓取**（Mapverse 自己不再有爬蟲），
+[Mapverse](https://github.com/17Kobe/Mapverse)（股市村）的股市頁所需的資料**全部由本專案抓取**（Mapverse 自己不再有爬蟲），
 輸出在 `public/data/world/`，由 Cloudflare Pages 以 `https://<本專案網域>/data/world/…` 提供（已開放 CORS）。
 
 | 腳本                          | 輸出                              | 內容                                                                                      | 來源                                    |

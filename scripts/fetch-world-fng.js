@@ -1,5 +1,5 @@
 /**
- * CNN 貪婪與恐慌指數抓取腳本（給 Mapverse 環遊股村概況卡的情緒條使用）
+ * CNN 貪婪與恐慌指數抓取腳本（給 Mapverse 股市村概況卡的情緒條使用）
  *
  * 來源與 fetch-cnn-realtime.js（iKDx 主站用的 public/data/global.json）相同，
  * 這裡另外輸出 public/data/world/fng.json，並多帶前一日 / 一週 / 一個月 / 一年的數值：
