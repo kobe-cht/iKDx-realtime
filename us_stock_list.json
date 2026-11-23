@@ -95,6 +95,11 @@
         "type": "us_stock"
     },
     {
+        "id": "ANT",
+        "name": "Anthropic",
+        "type": "us_stock"
+    },
+    {
         "id": "AAPL",
         "name": "蘋果",
         "type": "us_stock"
